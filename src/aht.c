@@ -4,9 +4,9 @@
 #include "include/aht.h"
 #include "include/errors.h"
 
-void ah_tree_init(struct ah_tree* aht, short sz){
-	struct ah_tree_node* ahtn;
-	aht->tree = calloc(sz * 2, sizeof(struct ah_tree_node));
+void aht_init(struct aht* aht, short sz){
+	struct aht_node* ahtn;
+	aht->tree = calloc(sz * 2, sizeof(struct aht_node));
 	if (!aht->tree){
 		fail_out(E_MALLOC);
 	}
@@ -20,12 +20,12 @@ void ah_tree_init(struct ah_tree* aht, short sz){
 	ahtn->parent = ahtn->left = ahtn->right = ahtn->block_next = ahtn->block_prev = -1;
 }
 
-void ah_tree_deinit(struct ah_tree* aht){
+void aht_deinit(struct aht* aht){
 	freec(aht->tree);
 }
 
-static struct ah_tree_node* aht_get_block_leader(struct ah_tree* aht, struct ah_tree_node* q){
-	struct ah_tree_node* n;
+static struct aht_node* aht_get_block_leader(struct aht* aht, struct aht_node* q){
+	struct aht_node* n;
 	while (q->block_next >= 0){ // find leader
 		n = aht->tree + q->block_next;
 		if (q->weight != n->weight || ((q->left < 0) ^ (n->left < 0))){ // different weight or different class (leaf/non-leaf)
@@ -36,7 +36,7 @@ static struct ah_tree_node* aht_get_block_leader(struct ah_tree* aht, struct ah_
 	return q;
 }
 
-static void aht_cascade_update_depth(struct ah_tree* aht, struct ah_tree_node* ahtn, unsigned short d){
+static void aht_cascade_update_depth(struct aht* aht, struct aht_node* ahtn, unsigned short d){
 	if (ahtn->left >= 0){
 		aht_cascade_update_depth(aht, aht->tree + ahtn->left, d + 1);
 		aht_cascade_update_depth(aht, aht->tree + ahtn->right, d + 1);
@@ -47,10 +47,10 @@ static void aht_cascade_update_depth(struct ah_tree* aht, struct ah_tree_node* a
 	ahtn->depth = d;
 }
 
-static void aht_slide(struct ah_tree* aht, struct ah_tree_node* n, struct ah_tree_node* b){
+static void aht_slide(struct aht* aht, struct aht_node* n, struct aht_node* b){
 	// slide node p all the way to after node b
 	// require 'p' to be subordinate to 'b'
-	struct ah_tree_node* p, *orig = n;
+	struct aht_node* p, *orig = n;
 	short b_par, prev_par, b_depth;
 	b_par = b->parent; // save old parent of b
 	b_depth = b->depth; // save old depth of b
@@ -99,9 +99,9 @@ static void aht_slide(struct ah_tree* aht, struct ah_tree_node* n, struct ah_tre
 	b->block_next = orig - aht->tree;
 }
 
-static struct ah_tree_node* aht_sai(struct ah_tree* aht, struct ah_tree_node* p){
+static struct aht_node* aht_sai(struct aht* aht, struct aht_node* p){
 	// slide and increment
-	struct ah_tree_node* b, *orig;
+	struct aht_node* b, *orig;
 	unsigned int wt = p->weight;
 	short s = p->parent; // internal node updates to previous parent
 	
@@ -125,7 +125,7 @@ static struct ah_tree_node* aht_sai(struct ah_tree* aht, struct ah_tree_node* p)
 	return p;
 }
 
-static void aht_swap(struct ah_tree* aht, struct ah_tree_node* a, struct ah_tree_node* b){ // require 'a' to be subordinate to 'b' (which implies a->block_next >= 0 and b->block_prev >= 0)
+static void aht_swap(struct aht* aht, struct aht_node* a, struct aht_node* b){ // require 'a' to be subordinate to 'b' (which implies a->block_next >= 0 and b->block_prev >= 0)
 	/*
 	swap 'a' and 'b'
 	adj = true:
@@ -135,7 +135,7 @@ static void aht_swap(struct ah_tree* aht, struct ah_tree_node* a, struct ah_tree
 		list before: ... <-> x <-> a <-> [...y...] <-> b <-> z <-> ...
 		list after:  ... <-> x <-> b <-> [...y...] <-> a <-> z <-> ...
 	*/
-	struct ah_tree_node* p;
+	struct aht_node* p;
 	int adj;
 	short t;
 	adj = a->block_next == b - aht->tree;
@@ -197,15 +197,15 @@ static void aht_swap(struct ah_tree* aht, struct ah_tree_node* a, struct ah_tree
 	}
 }
 
-static void aht_interchange_leaf(struct ah_tree* aht, struct ah_tree_node* q){
-	struct ah_tree_node* n = aht_get_block_leader(aht, q);
+static void aht_interchange_leaf(struct aht* aht, struct aht_node* q){
+	struct aht_node* n = aht_get_block_leader(aht, q);
 	if (n != q){ // interchange only if different
 		aht_swap(aht, q, n);
 	}
 }
 
-static short aht_sibling(struct ah_tree* aht, struct ah_tree_node* ahtn){
-	struct ah_tree_node* p;
+static short aht_sibling(struct aht* aht, struct aht_node* ahtn){
+	struct aht_node* p;
 	short ret;
 	if (ahtn->parent < 0){ // no parent means no sibling
 		ret = -1;
@@ -222,9 +222,9 @@ static short aht_sibling(struct ah_tree* aht, struct ah_tree_node* ahtn){
 	return ret;
 }
 
-void aht_insert(struct ah_tree* aht, short c){
-	struct ah_tree_node* q;
-	struct ah_tree_node* l2i = NULL; // leaf to increment
+void aht_insert(struct aht* aht, short c){
+	struct aht_node* q;
+	struct aht_node* l2i = NULL; // leaf to increment
 	q = aht->tree + c;
 	if (q->weight == 0){ // nyt
 		q = aht->tree + aht->nyt; // now the new internal 0 node
@@ -262,7 +262,7 @@ void aht_insert(struct ah_tree* aht, short c){
 	}
 }
 
-void aht_print_helper(struct ah_tree* aht, struct ah_tree_node* ahtn, int d){
+void aht_print_helper(struct aht* aht, struct aht_node* ahtn, int d){
 	unsigned char buf[d + 1];
 	memset(buf, '\t', d);
 	buf[d] = 0;
@@ -294,12 +294,12 @@ void aht_print_helper(struct ah_tree* aht, struct ah_tree_node* ahtn, int d){
 		aht_print_helper(aht, aht->tree + ahtn->right, d + 1);
 }
 
-void aht_print(struct ah_tree* aht){
+void aht_print(struct aht* aht){
 	printf("\033[1;31mSCORE: %d\033[0m\n", aht->score);
 	aht_print_helper(aht, aht->tree + aht->sz, 0);
 }
 
-static unsigned int aht_check_score_helper(struct ah_tree* aht, struct ah_tree_node* ahtn){
+static unsigned int aht_check_score_helper(struct aht* aht, struct aht_node* ahtn){
 	if (ahtn->left < 0){
 		return ahtn->depth * ahtn->weight;
 	}
@@ -308,7 +308,7 @@ static unsigned int aht_check_score_helper(struct ah_tree* aht, struct ah_tree_n
 			+ aht_check_score_helper(aht, aht->tree + ahtn->right);
 	}
 }
-int aht_check_score(struct ah_tree* aht){
+int aht_check_score(struct aht* aht){
 	unsigned int s = aht_check_score_helper(aht, aht->tree + aht->sz);
 	if (s == aht->score){
 		printf("PASS (%d)\n", aht->score);

@@ -65,7 +65,7 @@ void h_tree_add(struct h_tree_head* h, h_code c, int codelen, int val){
 	*v = H_TREE_REP(val);
 }
 
-int h_tree_d_lens(struct h_tree_head* ht, struct ah_tree* aht, struct ah_tree* aht2, struct hlit_hdist_hclen* ldc){
+int h_tree_d_lens(struct h_tree_head* ht, struct aht* aht, struct aht* aht2, struct hlit_hdist_hclen* ldc){
 	short i, j, h0, hlit, hdist;
 	unsigned short d;
 	struct h_tree_node htn[19] = {0};

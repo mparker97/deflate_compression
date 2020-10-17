@@ -70,7 +70,7 @@ struct dup_hash_entry{
 };
 
 struct deflate_compr{
-	struct ah_tree ll_aht, d_aht;
+	struct aht ll_aht, d_aht;
 	
 	unsigned char* d, *e;
 	swi* dup_entries;
@@ -87,8 +87,8 @@ void deflate_compr_init(struct deflate_compr* com){
 	if (!(com->d = malloc(com->sliding_window * 2 + 2))){
 		fail_out(E_MALLOC);
 	}
-	ah_tree_init(&com->ll_aht, NUM_LITLEN_CODES);
-	ah_tree_init(&com->d_aht, NUM_DIST_CODES);
+	aht_init(&com->ll_aht, NUM_LITLEN_CODES);
+	aht_init(&com->d_aht, NUM_DIST_CODES);
 	if (!(com->dup_entries = malloc(com->sliding_window * sizeof(swi)))){
 		fail_out(E_MALLOC);
 	}
