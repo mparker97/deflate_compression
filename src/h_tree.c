@@ -1,7 +1,8 @@
 #include <stdlib.h>
 #include "include/globals.h"
 #include "include/h_tree.h"
-#include "include/errors.h"
+#include "include/global_errors.h"
+#include "include/deflate_errors.h"
 #include "include/aht.h"
 #include "include/deflate.h"
 
@@ -20,7 +21,7 @@ void h_tree_deinit(struct h_tree_head* h){
 }
 
 // Look up the Huffman code value from the Huffman tree 'h'
-int h_tree_lookup(struct h_tree_head* h, unsigned char** byte, int* byte){
+int h_tree_lookup(struct h_tree_head* h, unsigned char** byte, int* bit){
 	int v;
 	struct h_tree_node* t = h->tree;
 	for (;;){
@@ -35,13 +36,14 @@ int h_tree_lookup(struct h_tree_head* h, unsigned char** byte, int* byte){
 		t = h->tree + v;
 	}
 	fail_out(E_HUFINV);
+	return 0;
 }
 
 // Adds the Huffman code 'c' of code length 'codelen' that encodes non-negative value 'val' to the Huffman tree 'h'
 void h_tree_add(struct h_tree_head* h, h_code c, int codelen, int val){
-	int i = 0;
+	short i = 0;
 	struct h_tree_node* t;
-	int* v = &i; // point to zero to start
+	short* v = &i; // point to zero to start
 	if (c >= H_CODE_1 << codelen) // Huffman code is bigger than its codelen
 		fail_out(E_HUFINV);
 	for (; i < codelen; i++, c >>= 1){
@@ -49,7 +51,7 @@ void h_tree_add(struct h_tree_head* h, h_code c, int codelen, int val){
 			fail_out(E_HUFAMB);
 		}
 		else if (*v == 0){ // new node; point the branch to the next spot at the end of the array
-			*v = t->sz++;
+			*v = h->sz++;
 		}
 		// follow node
 		t = h->tree + *v;
@@ -59,67 +61,66 @@ void h_tree_add(struct h_tree_head* h, h_code c, int codelen, int val){
 			v = &t->left;
 	}
 	// check that leaf is empty or that the correct val is already there
-	if (*v != 0 && v != H_TREE_REP(val)){
-		fail_out(HUF_AMB);
+	if (*v != 0 && *v != H_TREE_REP(val)){
+		fail_out(E_HUFAMB);
 	}
 	*v = H_TREE_REP(val);
 }
 
-int h_tree_d_lens(struct h_tree_head* ht, struct aht* aht, struct aht* aht2, struct hlit_hdist_hclen* ldc){
+int h_tree_d_lens(struct htbq* htn, struct aht* aht0, struct aht* aht1, struct hlit_hdist_hclen* ldc){
 	short i, j, h0, hlit, hdist;
 	unsigned short d;
-	struct h_tree_node htn[19] = {0};
 	int bit_count = 5 + 5 + 4 + 4 * 3; // HLIT, HDIST, HCLEN, initial HCLEN codes
 	for (i = 0; i < 19; i++){
-		htn[i].right = i;
+		htn[i].val = i;
 	}
-	for (h0 = NUM_LIT_LEN_CODES + NUM_DIST_CODES - 1; h0 >= NUM_LIT_LEN_CODES + 1 && aht->tree[h0].depth == 0; h0--); // get HDIST from this
-	hdist = h0 - NUM_LIT_LEN_CODES + 1;
-	for (h0 = NUM_LIT_LEN_CODES - 1; h0 >= 257 && aht->tree[h0].depth == 0; h0--); // get HLIT from this
+	for (h0 = NUM_LITLEN_CODES + NUM_DIST_CODES - 1; h0 >= NUM_LITLEN_CODES + 1 && aht0->tree[h0].depth == 0; h0--); // get HDIST from this
+	hdist = h0 - NUM_LITLEN_CODES + 1;
+	for (h0 = NUM_LITLEN_CODES - 1; h0 >= 257 && aht0->tree[h0].depth == 0; h0--); // get HLIT from this
 	hlit = h0 + 1;
 	
 	// leave h0 as hlist for the first run (lit/len); set to NUM_LIT_LEN_CODES + h_dist for the second run (dist)
 	for (i = 0; i < h0; i++){
-		d = aht->tree[i].depth;
+		d = aht0->tree[i].depth;
 		for (j = i + 1;; j++){ // i is the RLE base; j is the RLE bound
 			if (j == h0){
 				if (h0 == hlit){
 					j = 0;
 					i -= h0; // shift i down along with j
 					h0 = hdist;
-					aht = aht2;
+					aht0 = aht1;
 				}
 				else{
 					goto finish_off;
 				}
 			}
-			if (aht->tree[j].depth != d){ // loop proceeds until the char changes or it runs to the end
+			if (aht0->tree[j].depth != d){ // loop proceeds until the char changes or it runs to the end
 finish_off:
 				if (j - i >= 3 && d == 0){
 					// 17, 18
 					while (j - i >= 11){
 						i += min(j - i, 138);
-						htn[18].left++;
+						htn[18].weight++;
 						bit_count += 7;
 					}
 					if (j - i > 1){
-						htn[17].left++;
+						htn[17].weight++;
 						bit_count += 3;
 					}
 					else if (j - i == 1){
-						htn[0].left++;
+						htn[0].weight++;
 					}
 				}
 				else{
-					htn[d].left++;
+					htn[d].weight++;
 					// 16
 					while (j - i >= 3){
 						i += min(j - i, 6);
-						htn[16].left++;
+						htn[16].weight++;
 						bit_count += 2;
 					}
 					for (; i < j; i++){
-						htn[d].left++;
+						htn[d].weight++;
 					}
 				}
 				i = j - 1;
@@ -128,7 +129,7 @@ finish_off:
 		}
 	}
 	// HCLEN found by the last nonzero frequency code length
-	for (i = 15, j = 15; i > 4 && htn[j].left == 0; i--){
+	for (i = 15, j = 15; i > 4 && htn[j].weight == 0; i--){
 		j += (j < 8)? i - 1 : -(i - 1);
 	}
 	if (ldc){

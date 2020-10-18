@@ -1,6 +1,6 @@
 #ifndef DEFLATE_ERRORS_H
 #define DEFLATE_ERRORS_H
-#include "../../include/global_errors.h"
+#include "global_errors.h"
 
 #define DEFLATE_ERROR_MASK (1U << 24)
 #define NUM_DEFLATE_ERRORS 14
@@ -39,12 +39,12 @@ const unsigned char deflate_errors[NUM_DEFLATE_ERRORS + 1][ERROR_NAME_LEN + 1] =
 };
 
 #undef fail_out
-#define fail_out(s, e) \
+#define fail_out(e) \
 	do{ \
-		if ((e) & ERROR_CLEAR_MASK == DEFLATE_ERROR_MASK) \
-			do_fail_out((s)->env, e, deflate_errors[e]); \
+		if (((e) & ERROR_CLEAR_MASK) == DEFLATE_ERROR_MASK) \
+			do_fail_out(e, deflate_errors[e]); \
 		else \
-			do_fail_out((s)->env, e, global_errors[e]); \
+			do_fail_out(e, global_errors[e]); \
 	} while(0)
 
 #endif

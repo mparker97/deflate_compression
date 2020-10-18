@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include "include/errors.h"
+#include "global_errors.h"
 
 #define min(a, b) (((a) < (b))? (a) : (b))
 #define closec(x) do {close(x); (x) = 0;} while (0)

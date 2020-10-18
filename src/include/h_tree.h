@@ -1,5 +1,6 @@
 #ifndef H_TREE_H
 #define H_TREE_H
+#include "aht.h"
 
 typedef unsigned int h_code;
 #define H_CODE_1 (h_code)1
@@ -42,15 +43,15 @@ struct hlit_hdist_hclen{
 	short hlit, hdist, hclen;
 };
 
-void h_tree_init(struct h_tree_head* h, short sz);
+void h_tree_init(struct h_tree_head* h, int sz);
 void h_tree_deinit(struct h_tree_head* h);
-int h_tree_lookup(struct h_tree_head* h, unsigned char** byte, int* byte);
+int h_tree_lookup(struct h_tree_head* h, unsigned char** byte, int* bit);
 void h_tree_add(struct h_tree_head* h, h_code c, int codelen, int val);
 void h_tree_builder_init(struct h_tree_builder* htb, short sz);
 void h_tree_builder_deinit(struct h_tree_builder* htb);
 void h_tree_builder_reset(struct h_tree_builder* htb);
 void h_tree_builder_build(struct h_tree_builder* htb);
 unsigned int h_tree_builder_score(struct h_tree_builder* htb);
-int h_tree_d_lens(struct h_tree_head* ht, struct aht* aht, struct aht* aht2, struct hlit_hdist_hclen* ldc)
+int h_tree_d_lens(struct htbq* htn, struct aht* aht0, struct aht* aht1, struct hlit_hdist_hclen* ldc);
 
 #endif

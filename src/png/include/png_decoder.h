@@ -4,8 +4,6 @@
 #include "../include/globals.h"
 #include "include/png_errors.h"
 
-#define png_fail_out(e) fail_out(pd, e)
-
 #define CH_NAME_LEN 4 // length of chunk name member
 #define CH_NUM_TYPES 18 // length of following list of chunk types
 #define CH_NUM_TYPES_ORDER 5 // ceil(log2(CH_NUM_TYPES - 1))
@@ -203,7 +201,6 @@ struct png_decoder{
 	unsigned char name[CH_NAME_LEN]; // updated to the chunk name for each chunk
 	off_t data; // updated to the chunk file offset for each chunk
 	// 16
-	struct jumpbuf env;
 };
 
 // Get the chunk's index (constant number) from its name

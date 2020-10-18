@@ -105,7 +105,7 @@ void check_crc(struct png_decoder* pd){
 	unsigned int ccrc; // calculated crc
 	unsigned char* data;
 	if ((data = malloc(pd->len + CH_CRC_LEN * 2)) == NULL)
-		png_fail_out(E_MALLOC);
+		fail_out(E_MALLOC);
 	seek_read_sz(data, pd->len + CH_CRC_LEN);
 	ccrc = calc_crc(data, pd->len);
 	free(data);
@@ -124,7 +124,7 @@ void ch_failure(struct png_decoder* pd;, int ch, int e){
 	printf("Error %d (%s, %s) in chunk %s: ", e, e1, e2, n);
 	if (pd->name[0] & 0x20){ // critical
 		printf("(critical; terminating)\n");
-		longjmp(pd->env);
+		fail_out(E_INVAL);
 	}
 	else{
 		printf("(ancillary; skipping)\n");
@@ -147,17 +147,17 @@ int check_text_restrictions(unsigned char* s, unsigned int min_len, unsigned int
 		goto fail;
 	return i;
 fail:
-	png_fail_out(E_TXTRST);
+	fail_out(E_TXTRST);
 }
 
 void chunk_IHDR(struct png_decoder* pd){
 	if (pd->len != sizeof(pd->ch_ihdr))
-		png_fail_out(E_CHDSZ);
+		fail_out(E_CHDSZ);
 	seek_read(&pd->ch_ihdr);
 	if (!pd->ch_ihdr.width || !pd->ch_ihdr.height) // height and width must be nonzero
-		png_fail_out(E_SZ);
+		fail_out(E_SZ);
 	if (pd->ch_ihdr.bit_depth > 16 || !pd->ch_ihdr.bit_depth || (pd->ch_ihdr.bit_depth & (pd->ch_ihdr.bit_depth - 1))) // bit depth must be 1, 2, 4, 8, 16
-		png_fail_out(E_BTDPTH);
+		fail_out(E_BTDPTH);
 	pd->sample_depth = pd->ch_ihdr.bit_depth;
 	switch (pd->ch_ihdr.color_type){
 		case 0: // bit depth must be 1, 2, 4, 8, 16
@@ -174,25 +174,25 @@ void chunk_IHDR(struct png_decoder* pd){
 			pd->sample_depth = 8;
 			goto ct_pass;
 		default:
-			png_fail_out(E_COLTYP);
+			fail_out(E_COLTYP);
 	}
-	png_fail_out(E_BTDPTH);
+	fail_out(E_BTDPTH);
 ct_pass:
 	pd->px_depth = pd->ch_ihdr.bit_depth * PX_DEPTHS[pd->ch_ihdr.color_type];
 	if (pd->ch_ihdr.compression_method) // compression method must be 0
-		png_fail_out(E_CMPRMT);
+		fail_out(E_CMPRMT);
 	if (pd->ch_ihdr.filter_method) // filter method must be 0
-		png_fail_out(E_FILTMT);
+		fail_out(E_FILTMT);
 	if (pd->ch_ihdr.interlace_method > 1) // interlace method must be 0 or 1
-		png_fail_out(E_ITRLMT);
+		fail_out(E_ITRLMT);
 }
 void chunk_PLTE(struct png_decoder* pd){
 	if (pd->ch_ihdr.color_type == 0 || pd->ch_ihdr.color_type == 4) // PLTE entry must NOT exist for these color types
-		png_fail_out(E_EXIST);
+		fail_out(E_EXIST);
 	if (!pd->len || pd->len > 255 * 3 || pd->len % 3 || (pd->ch_ihdr.color_type == 3 && pd->len / 3 > (1 << pd->ch_ihdr.bit_depth)))
-		png_fail_out(E_CHDSZ);
+		fail_out(E_CHDSZ);
 	if ((pd->ch_plte = malloc(pd->len)) == NULL)
-		png_fail_out(E_MALLOC);
+		fail_out(E_MALLOC);
 	seek_read(pd->ch_plte);
 	pd->ch_plte_len = pd->len / 3;
 }
@@ -200,29 +200,29 @@ void chunk_IDAT(struct png_decoder* pd){
 	int ret = 0;
 	unsigned char* d;
 	if (pd->ch_ihdr.color_type == 3 && !ch_cts(PLTE)) // PLTE entry must exist for this color type
-		png_fail_out(E_NEXIST | PLTE);
+		fail_out(E_NEXIST | PLTE);
 	if ((pd->compr_dat.str = realloc(pd->compr_dat.str, pd->compr_dat.len + pd->len)) == NULL)
-		png_fail_out(E_MALLOC);
+		fail_out(E_MALLOC);
 	seek_read(pd->compr_dat.str + pd->compr_dat.len);
 	pd->compr_dat.len += pd->len;
 	// decompression saved for later
 }
 void chunk_IEND(struct png_decoder* pd){
 	if (pd->len != 0)
-		png_fail_out(E_CHDSZ);
+		fail_out(E_CHDSZ);
 }
 void chunk_CHRM(struct png_decoder* pd){
 	if (ch_cts(SRGB) || ch_cts(ICCP))
 		return; // SRGB and ICCP override CHRM
 	if (pd->len != sizeof(pd->ch_chrm))
-		png_fail_out(E_CHDSZ);
+		fail_out(E_CHDSZ);
 	seek_read_sz(&pd->ch_chrm, sizeof(pd->ch_chrm));
 }
 void chunk_GAMA(struct png_decoder* pd){
 	if (ch_cts(SRGB) || ch_cts(ICCP))
 		return; // SRGB and ICCP override GAMA
 	if (pd->len != 4)
-		png_fail_out(E_CHDSZ);
+		fail_out(E_CHDSZ);
 	seek_read_sz(&pd->gamma, sizeof(unsigned int));
 }
 void chunk_ICCP(struct png_decoder* pd){
@@ -230,9 +230,9 @@ void chunk_ICCP(struct png_decoder* pd){
 	struct string_len c, d;
 	unsigned char* iccp = NULL, * prof;
 	if (ch_chrm(SRGB))
-		png_fail_out(E_2EMPRF); // ICCP and SRGB not compatible
+		fail_out(E_2EMPRF); // ICCP and SRGB not compatible
 	if ((iccp = malloc(pd->len + 1)) == NULL)
-		png_fail_out(E_MALLOC);
+		fail_out(E_MALLOC);
 	seek_read(iccp);
 	iccp[pd->len] = '\0';
 	if ((i = check_text_restrictions(iccp, 1, 79)) < 0) // profile name must be 1-79 bytes
@@ -257,7 +257,7 @@ void chunk_ICCP(struct png_decoder* pd){
 	return;
 fail:
 	free(iccp);
-	png_fail_out(i);
+	fail_out(i);
 }
 void chunk_SBIT(struct png_decoder* pd){
 	int i, depths;
@@ -277,21 +277,21 @@ void chunk_SBIT(struct png_decoder* pd){
 			break;
 	}
 	if (pd->len != depths)
-		png_fail_out(E_CHDSZ);
+		fail_out(E_CHDSZ);
 	seek_read_sz(pd->ch_sbit, depths);
 	for (i = 0; i < depths; i++){
 		if (!pd->ch_sbit[i] || pd->ch_sbit[i] > pd->sample_depth) // each entry must be nonzero and <= sample_depth
-			png_fail_out(E_RANGE);
+			fail_out(E_RANGE);
 	}
 }
 void chunk_SRGB(struct png_decoder* pd){
 	if (ch_chrm(ICCP))
-		png_fail_out(E_2EMPRF); // ICCP and SRGB not compatible
+		fail_out(E_2EMPRF); // ICCP and SRGB not compatible
 	if (pd->len != 1)
-		png_fail_out(E_CHDSZ);
+		fail_out(E_CHDSZ);
 	seek_read_sz(&pd->rendering_intent, 1);
 	if (pd->rendering_intent > 3)
-		png_fail_out(E_INVAL);
+		fail_out(E_INVAL);
 }
 void chunk_BKGD(struct png_decoder* pd){
 	int i;
@@ -301,35 +301,35 @@ void chunk_BKGD(struct png_decoder* pd){
 	ct = lens[pd->ch_ihdr.color_type & 3];
 	if (ct > 0){
 		if (pd->len != ct)
-			png_fail_out(E_CHDSZ);
+			fail_out(E_CHDSZ);
 		seek_read_sz(pd->ch_bkgd, ct);
 	}
 	switch (pd->ch_ihdr.color_type){
 		case 3:
 			if (!ch_cts(PLTE)) // PLTE entry must exist for this color type
-				png_fail_out(E_NEXIST | PLTE);
+				fail_out(E_NEXIST | PLTE);
 			break;
 		case 0:
 		case 4:
 			if (*(unsigned short*)(pd->ch_bkgd) >= (1 << pd->ch_ihdr.bit_depth))
-				png_fail_out(E_RANGE);
+				fail_out(E_RANGE);
 			break;
 		case 2:
 		case 6:
 			for (i = 0; i < 3; i++){
 				if (((unsigned short*)(pd->ch_bkgd))[i] >= (1 << pd->ch_ihdr.bit_depth))
-					png_fail_out(E_RANGE);
+					fail_out(E_RANGE);
 			}
 			break;
 	}
 }
 void chunk_HIST(struct png_decoder* pd){
 	if (!ch_cts(PLTE)) // PLTE entry must exist
-		png_fail_out(E_NEXIST | PLTE);
+		fail_out(E_NEXIST | PLTE);
 	if (pd->len / 2 != pd->ch_plte_len)
-		png_fail_out(E_CHDSZ);
+		fail_out(E_CHDSZ);
 	if ((pd->ch_hist = malloc(pd->len)) == NULL)
-		png_fail_out(E_MALLOC);
+		fail_out(E_MALLOC);
 	seek_read(pd->ch_hist);
 	// TODO (but not here): all nonzero entries in ch_hist MUST appear somewhere in image
 }
@@ -340,32 +340,32 @@ void chunk_TRNS(struct png_decoder* pd){
 	switch (pd->ch_ihdr.color_type){
 		case 4:
 		case 6:
-			png_fail_out(E_EXIST);
+			fail_out(E_EXIST);
 			break;
 		case 3:
 			if (!ch_cts(PLTE)) // PLTE entry must exist for this color type
-				png_fail_out(E_NEXIST | PLTE);
+				fail_out(E_NEXIST | PLTE);
 			if (pd->len > pd->ch_plte_len) // at most one entry per PLTE entry
-				png_fail_out(E_CHDSZ);
+				fail_out(E_CHDSZ);
 			if ((pd->ch_trns_palette = malloc(pd->len)) == NULL)
-				png_fail_out(E_MALLOC);
+				fail_out(E_MALLOC);
 			pd->ch_trns_palette_len = pd->len;
 			read(pd->fd, pd->ch_trns_palette, pd->len);
 			break;
 		case 0:
 			if (pd->len != 2)
-				png_fail_out(E_CHDSZ);
+				fail_out(E_CHDSZ);
 			read(pd->fd, &pd->ch_trns_palette, 2);
 			if ((unsigned short)(pd->ch_trns_palette) >= (1 << pd->ch_ihdr.bit_depth))
-				png_fail_out(E_RANGE);
+				fail_out(E_RANGE);
 			break;
 		case 2:
 			if (pd->len != 6)
-				png_fail_out(E_CHDSZ);
+				fail_out(E_CHDSZ);
 			read(pd->fd, &pd->ch_trns_palette, 6);
 			for (i = 0; i < 3; i++){
 				if (((unsigned short*)&pd->ch_trns_palette)[i] >= (1 << pd->ch_ihdr.bit_depth))
-					png_fail_out(E_RANGE);
+					fail_out(E_RANGE);
 			}
 			break;
 	}
@@ -373,13 +373,13 @@ void chunk_TRNS(struct png_decoder* pd){
 void chunk_PHYS(struct png_decoder* pd){
 	int ret = 0;
 	if (pd->len != 9)
-		png_fail_out(E_CHDSZ | PHYS);
+		fail_out(E_CHDSZ | PHYS);
 	lseek(pd->fd, pd->data, SEEK_SET);
 	read(pd->fd, &pd->ch_phys_px_x, 4); // TODO: make these three fields a struct and do one read
 	read(pd->fd, &pd->ch_phys_px_y, 4);
 	read(pd->fd, &pd->ch_phys_unit, 1);
 	if (pd->ch_phys_unit > 1)
-		png_fail_out(E_INVAL | PHYS);
+		fail_out(E_INVAL | PHYS);
 fail:
 	return ret;
 }
@@ -389,7 +389,7 @@ int chunk_SPLT(struct png_decoder* pd){
 	unsigned short prev_freq = (unsigned short)(-1);
 	sz = min(pd->len, 81U);
 	if ((i = a_list_add(&pd->ch_splts, &pd->ch_splts_len, sizeof(*pd->ch_splts))))
-		png_fail_out(i);
+		fail_out(i);
 	if ((csn = malloc(pd->len + 1)) == NULL){
 		i = E_MALLOC;
 		goto fail_nofree;
@@ -452,12 +452,12 @@ fail:
 	free(csn);
 fail_nofree:
 	pd->ch_splts_len--;
-	png_fail_out(i);
+	fail_out(i);
 }
 void chunk_TIME(struct png_decoder* pd){
 	// FUTURE: more advanced time checks (maybe in coordination w/ encoder)?
 	if (pd->len != sizeof(pd->ch_time))
-		png_fail_out(E_CHDSZ);
+		fail_out(E_CHDSZ);
 	seek_read_sz(&pd->ch_time, sizeof(pd->ch_time));
 	if (
 		pd->ch_time.year > 9999
@@ -467,14 +467,14 @@ void chunk_TIME(struct png_decoder* pd){
 		|| pd->ch_time.minute > 59
 		|| pd->ch_time.second > 60
 	)
-		png_fail_out(E_RANGE);
+		fail_out(E_RANGE);
 }
 void chunk_ITXT(struct png_decoder* pd){
 	int i, rm;
 	struct string_len c, d;
 	unsigned char* kw = NULL, * lt, * tkw, * tx;
 	if ((i = a_list_add(&pd->ch_itxts, &pd->ch_itxts_len, sizeof(*pd->ch_itxts)))){
-		png_fail_out(i); // didn't increment
+		fail_out(i); // didn't increment
 	}
 	if ((kw = malloc(pd->len + 1)) == NULL){
 		i = E_MALLOC;
@@ -538,7 +538,7 @@ void chunk_ITXT(struct png_decoder* pd){
 		pd->ch_itxts[pd->ch_itxts_len - 1].tx.len = d.len;
 	}
 	else if (lt[-2] != 0)
-		png_fail_out(E_INVAL);
+		fail_out(E_INVAL);
 	else{
 		pd->ch_itxts[pd->ch_itxts_len - 1].tx.str = tx;
 		pd->ch_itxts[pd->ch_itxts_len - 1].tx.len = rm;
@@ -551,13 +551,13 @@ fail:
 	free(kw);
 fail_nofree:
 	pd->ch_itxts_len--; // undo a_list_add
-	png_fail_out(i);
+	fail_out(i);
 }
 void chunk_TEXT(struct png_decoder* pd){
 	int i, rm;
 	unsigned char* kw, * tx;
 	if (((i = a_list_add(&pd->ch_texts, &pd->ch_texts_len, sizeof(*pd->ch_texts)))){
-		png_fail_out(i); // didn't increment
+		fail_out(i); // didn't increment
 	}
 	if ((kw = malloc(pd->len + 1)) == NULL){
 		i = E_MALLOC;
@@ -583,14 +583,14 @@ fail:
 	free(kw);
 fail_nofree:
 	pd->ch_texts_len--; // undo a_list_add
-	png_fail_out(i);
+	fail_out(i);
 }
 void chunk_ZTXT(struct png_decoder* pd){
 	int ret, i;
 	struct string_len c, d;
 	unsigned char* kw, * tx;
 	if ((i = a_list_add(&pd->ch_ztxts, &pd->ch_ztxts_len, sizeof(*pd->ch_ztxts)))){
-		png_fail_out(i);
+		fail_out(i);
 	}
 	if ((kw = malloc(pd->len + 1)) == NULL){
 		i = E_MALLOC;
@@ -624,7 +624,7 @@ fail:
 	freec(kw);
 fail_nofree:
 	pd->ch_ztxts_len--; // undo a_list_add
-	png_fail_out(i);
+	fail_out(i);
 }
 
 void ch_inc(struct png_decoder* pd, int w){
@@ -634,7 +634,7 @@ void ch_inc(struct png_decoder* pd, int w){
 
 void ch_mult_ok(struct png_decoder* pd, int w){
 	if (!(pd->name[1] & 0x20) && w != IDAT && w != SPLT && w != ITXT && w != TEXT && w != ZTXT && ch_cts(w)) // Multiple chunks of type when forbidden
-		png_fail_out(E_CHMULT);
+		fail_out(E_CHMULT);
 }
 
 void ch_order_ok(struct png_decoder* pd, int w){
@@ -646,53 +646,47 @@ void ch_order_ok(struct png_decoder* pd, int w){
 		|| (w == IDAT && pd->prev_ch != IDAT && ch_cts(IDAT)) // IDATs are consecutive
 		//|| ch_cts(IEND) // IEND must be last // don't need since IEND stops iteration
 		)
-		png_fail_out(E_CHORDR | w);
+		fail_out(E_CHORDR | w);
 }
 
 int do_chunk(struct png_decoder* pd){
-	struct jump_buf jb;
 	int ret = 0, i;
-	jb = pd->env;
 	if ((i = get_ch_index(pd->name)) < 0){ // chunk type not supported
 		ret = -i;
 		i = 0;
 		goto fail;
 	}
-	ret = setjmp(pd->env);
-	if (ret){
+	if (!fail_checkpoint()){
 		// TODO: if not already OR'ed
 		ret |= i;
 		goto fail;
 	}
-	else{
-		pd->prev_ch = i;
-		if (pd->name[2] & 0x20)
-			png_fail_out(E_RESERV); // reserved bit must not be set
-		ch_order_ok(i);
-		ch_mult_ok(pd, i);
-		if (!check_crc(pd))
-			png_fail_out(E_CRC);
-		ch_funcs[i](pd); // ch type already embedded
-		ch_inc(pd->name, i);
-		ret = i;
-		goto pass;
-	}
+	pd->prev_ch = i;
+	if (pd->name[2] & 0x20)
+		fail_out(E_RESERV); // reserved bit must not be set
+	ch_order_ok(i);
+	ch_mult_ok(pd, i);
+	if (!check_crc(pd))
+		fail_out(E_CRC);
+	ch_funcs[i](pd); // ch type already embedded
+	ch_inc(pd->name, i);
+	ret = i;
+	fail_uncheckpoint();
+	goto pass;
 fail:
-	pd->env = jb;
 	ch_failure(pd, i, ret); // if not critical, keep going
 pass:
-	pd->env = jb;
 	return ret;
 }
 
 int next_chunk(struct png_decoder* pd, off_t* off){
 	int ret = 0;
 	if (*off + CH_LEN_LEN + CH_NAME_LEN + CH_CRC_LEN >= pd->f_sz)
-		png_fail_out(E_CHFRAG);
+		fail_out(E_CHFRAG);
 	lseek(pd->fd, *off, SEEK_SET);
 	read(pd->fd, &pd->len, CH_LEN_LEN);
 	if (*off + pd->len + CH_LEN_LEN + CH_NAME_LEN + CH_CRC_LEN > pd->f_sz)
-		png_fail_out(E_CHFRAG);
+		fail_out(E_CHFRAG);
 	read(pd->fd, &pd->name, CH_NAME_LEN);
 	pd->data = *off + CH_LEN_LEN + CH_NAME_LEN;
 	*off += pd->len + CH_LEN_LEN + CH_NAME_LEN + CH_CRC_LEN;
@@ -711,9 +705,9 @@ int iter_chunks(struct png_decoder* pd){
 	goto fail;
 out_loop:
 	if (!ch_cts(IDAT))
-		png_fail_out(E_NODAT);
+		fail_out(E_NODAT);
 	if ((ret = deflate_decompress(&pd->decompr_dat, &pd->compr_dat, 0)) < 0)
-		png_fail_out(-ret | IDAT);
+		fail_out(-ret | IDAT);
 fail:
 	return ret;
 }
@@ -722,10 +716,10 @@ int malloc_img(struct png_decoder* pd){
 	int ret = 0;
 	unsigned int i;
 	if ((pd->img = calloc(pd->ch_ihdr.height, sizeof(unsigned char*))) == NULL)
-		png_fail_out(E_MALLOC);
+		fail_out(E_MALLOC);
 	for (i = 0; i < pd->ch_ihdr.height; i++)
 		if ((pd->img[i] = malloc(((size_t)(pd->ch_ihdr.width) * pd->px_depth + 7) / 8)) == NULL)
-			png_fail_out(E_MALLOC);
+			fail_out(E_MALLOC);
 	}
 fail:
 	return ret;
@@ -858,7 +852,7 @@ void defilter(unsigned char* l0, unsigned char* l1, size_t sz){
 			}
 			break;
 		default:
-			png_fail_out(E_DEFLTR);
+			fail_out(E_DEFLTR);
 	}
 }
 
@@ -884,7 +878,7 @@ int fill_img(struct png_decoder* pd){
 	unsigned int px_mask;
 	sz = ((size_t)(pd->ch_ihdr.width) * pd->px_depth + 7) / 8 + 1; // maximum number of bytes in a scanline
 	if ((stage = malloc(sz)) == NULL)
-		png_fail_out(E_MALLOC);
+		fail_out(E_MALLOC);
 	byte = pd->decompr_dat.str;
 	ip.pass = 0;
 	px_mask = (1 << pd->px_depth) - 1;
@@ -954,35 +948,33 @@ void png_decoder_init(struct png_decoder* pd){
 	pd->ch_texts_len = pd->ch_ztxts_len = pd->ch_itxts_len = pd->ch_splts_len = 0;
 	pd->ch_trns_palette = NULL;
 	pd->ch_trns_palette_len = 0;
-	ret = setjmp(pd->env);
-	if (ret < 0){
-		perror("Failed\n"); // TODO
-		cleanup(&pd);
-		exit(1);
-	}
 }
 
 int png_decode(unsigned char* file_name){
 	struct png_decoder pd;
-	int ret;
 	struct stat st;
 	unsigned char buf[64];
+	if (fail_checkpoint() < 0){
+		perror("Failed\n"); // TODO
+		cleanup(&pd);
+		return 0;
+	}
 	if ((pd.fd = open(file_name, O_RDWR)) < 0){
 		perror("Failed to open file %s\n", file_name);
-		return -1;
+		fail_out(E_NEXIST);
 	}
 	if (fstat(pd.fd, &st) < 0){
 		perror("fstat failed\n");
-		goto fail;
+		fail_out(E_SZ);
 	}
 	if ((pd.f_sz = st.st_size) < PNG_HEAD_LEN){
 		perror("file too small\n");
-		goto fail;
+		fail_out(E_SZ);
 	}
 	read(file_name, buf, PNG_HEAD_LEN);
 	if (strncmp(buf, PNG_HEAD, PNG_HEAD_LEN)){
 		perror("invalid file header\n");
-		goto fail;
+		fail_out(E_INVHDR);
 	}
 	png_decoder_init(&pd);
 	iter_chunks(&pd);
@@ -990,7 +982,7 @@ int png_decode(unsigned char* file_name){
 	fill_img(&pd);
 	// TODO: image in pd->img
 	// TODO: keep some heap mem if pass
-fail:
 	cleanup(&pd);
-	return ret;
+	fail_uncheckpoint();
+	return 1;
 }

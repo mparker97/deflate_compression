@@ -372,6 +372,7 @@ int deflate_decompress(struct string_len* decompr_dat, struct string_len* compr_
 	int bit = 0;
 	decompr_dat->str = NULL; // poison values if error
 	decompr_dat->len = 0;
+	
 	if (compr_dat->len == 0) // no data, skip
 		goto fail;
 	if ((dec.d = malloc(DEFLATE_DECOMP_INIT_SZ)) == NULL)

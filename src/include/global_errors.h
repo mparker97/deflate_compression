@@ -1,5 +1,6 @@
 #ifndef GLOBAL_ERRORS_H
 #define GLOBAL_ERRORS_H
+#include <stdlib.h>
 #include <stdio.h>
 #include <setjmp.h>
 
@@ -37,12 +38,27 @@ void print_error(int e, char* file, int line){
 	fprintf(stderr, "FAIL_OUT ENCOUNTERED ERROR %d (%s:%d)\n", e, __FILE__, __LINE__);
 }
 
+#define MAX_CHECKPOINTS 10
+int checkpoint_stack = 0;
+jmp_buf checkpoints[MAX_CHECKPOINTS];
+int fail_checkpoint(){
+	if (++checkpoint_stack == MAX_CHECKPOINTS){
+		fprintf(stderr, "Checkpoint stack full\n");
+		exit(1);
+	}
+	return setjmp(checkpoints[checkpoint_stack]);
+}
+
+void fail_uncheckpoint(){
+	checkpoint_stack--;
+}
+
 #ifdef _DEBUG
-#define do_fail_out(s, e, m) do {print_error(m, __FILE__, __LINE__); longjmp((s)->env, e)} while (0)
+#define do_fail_out(e, m) do {print_error(m, __FILE__, __LINE__); longjmp(checkpoints[checkpoint_stack], e)} while (0)
 #else
-#define do_fail_out(s, e, m) longjmp((s)->env, e)
+#define do_fail_out(e, m) longjmp(checkpoints[checkpoint_stack], e)
 #endif
 
-#define fail_out(s, e) do_fail_out(s, e, global_errors[e])
+#define fail_out(e) do_fail_out(e, global_errors[e])
 
 #endif

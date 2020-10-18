@@ -1,8 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "include/globals.h"
 #include "include/aht.h"
-#include "include/errors.h"
+#include "include/global_errors.h"
 
 void aht_init(struct aht* aht, short sz){
 	struct aht_node* ahtn;
@@ -51,9 +52,8 @@ static void aht_slide(struct aht* aht, struct aht_node* n, struct aht_node* b){
 	// slide node p all the way to after node b
 	// require 'p' to be subordinate to 'b'
 	struct aht_node* p, *orig = n;
-	short b_par, prev_par, b_depth;
+	short b_par, prev_par;
 	b_par = b->parent; // save old parent of b
-	b_depth = b->depth; // save old depth of b
 	// block pointers on p side
 	if (n->block_prev >= 0){
 		aht->tree[n->block_prev].block_next = n->block_next;

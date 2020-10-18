@@ -7,6 +7,7 @@
 #include "include/aht.h"
 #include "include/deflate_errors.h"
 #include "include/deflate.h"
+#include "include/h_tree.h"
 
 #define DUP_HT_SZ 1024
 
@@ -132,7 +133,7 @@ short dup_hash(unsigned char* p){
 }
 
 void fetch(struct deflate_compr* com, unsigned char* p, swi len){
-	int ret = get_the_bytes_here(p, len); // TODO
+	int ret = fread(p, sizeof(unsigned char), len, f); // TODO: get bytes here
 	com->bound = p - com->e + ret;
 	if (!com->bound){
 		com->done = 1;
@@ -212,8 +213,8 @@ int get_dist_code(int x, int* peb, int* pebits){
 	return x;
 }
 
-void process_loop(struct deflate_compr* com){
-	int read_amount, i, j, k, t;
+void process_loop(struct deflate_compr* com, struct h_tree_builder* htb){
+	int i, j, k, t;
 	int c; // offset of dup, taken from com->d
 	
 	struct dup_hash_entry* dh;
@@ -276,10 +277,10 @@ void process_loop(struct deflate_compr* com){
 				}
 			}
 			
-			h_tree_builder_reset(&htb);
-			sc = h_tree_d_lens(htb.q, &com->ll_aht, &com->d_aht, NULL);
-			h_tree_builder_build(&htb);
-			sc2 = h_tree_builder_score(&htb);
+			h_tree_builder_reset(htb);
+			sc = h_tree_d_lens(htb->q, &com->ll_aht, &com->d_aht, NULL);
+			h_tree_builder_build(htb);
+			sc2 = h_tree_builder_score(htb);
 			//printf("Overhead score (codes + bits): %d + %d = %d\n", sc2, sc, sc + sc2);
 			printf("%d, %d, %d, %d, %f\n", sc2, sc, com->ll_aht.score, com->d_aht.score, ((double)(com->ll_aht.score + com->d_aht.score) + sc + sc2) / (k + 1));
 			
@@ -319,10 +320,14 @@ repeat_copy:
 	
 }
 
-void main(){
+int main(int argc, char* argv[]){
 	struct deflate_compr com;
 	struct h_tree_builder htb;
-	f = fopen("bee_movie.txt", "r");
+	if (argc != 1){
+		fprintf(stderr, "USAGE: %s FILE\n", argv[0]);
+		exit(1);
+	}
+	f = fopen(argv[1], "r");
 	if (f == NULL){
 		fprintf(stderr, "Failed to open file\n");
 		exit(1);
@@ -330,10 +335,11 @@ void main(){
 	com.sliding_window = 1 << 15;
 	h_tree_builder_init(&htb, NUM_LITLEN_CODES + NUM_DIST_CODES);
 	printf("codes, ebits, ll_aht, d_aht, ratio\n");
-	process_loop(&com);
+	process_loop(&com, &htb);
 	fclose(f);
 }
 
+/*
 int deflate_compress(struct string_len* compr_dat, struct string_len* decompr_dat, int ops){
 	struct deflate_compr com;
 	// TODO: get sliding window
@@ -341,3 +347,4 @@ int deflate_compress(struct string_len* compr_dat, struct string_len* decompr_da
 	deflate_compr_init(&com);
 	
 }
+*/
