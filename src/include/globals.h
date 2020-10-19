@@ -6,6 +6,8 @@
 #include <string.h>
 #include "global_errors.h"
 
+#define STR(x) #x
+
 #define min(a, b) (((a) < (b))? (a) : (b))
 #define closec(x) do {close(x); (x) = 0;} while (0)
 #define freec(x) do {free(x); (x) = NULL;} while (0)
@@ -15,14 +17,28 @@
 #define byte_roundup(byte, bit) if (bit) do{(byte)++; (bit) = 0;} while (0)
 #define MASK(val, a, b) ((*(1ULL << (b)) - 1) & (val)) >> (a))
 
+#define STATIC_WIGNORE(x, instrs) \
+	_Pragma("GCC diagnostic push") \
+	_Pragma(STR(GCC diagnostic ignored x)) \
+	instrs \
+	_Pragma("GCC diagnostic pop")
+	
+#define WIGNORE(x, instrs) \
+	do{ \
+		STATIC_WIGNORE(x, instrs) \
+	} while(0)
+
 struct string_len{
 	// character array with length, so that \0 can be a member without termination
 	unsigned char* str;
 	size_t len;
 };
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+
 // Read 'len' bits (up to 4 bytes) from 'byte' starting at bit 'bit'
-unsigned int _bits32(unsigned char* byte, int bit, int len){
+static unsigned int _bits32(unsigned char* byte, int bit, int len){
 	// must have len + bit <= 32
 	unsigned int ret = 0;
 	memcpy(&ret, byte, min((bit + len + 7) / 8, sizeof(unsigned int)));
@@ -39,7 +55,7 @@ static inline unsigned int read_bits32(unsigned char** byte, int* bit, int len){
 // Add space of size 'elm_sz' to amortized list '*list' with length '*len'
 // 'elm_sz' should be the same for each call using the same list
 // Automatically double the list's space if its capacity is reached
-int a_list_add(void** list, unsigned int* len, size_t elm_sz){
+static int a_list_add(void** list, unsigned int* len, size_t elm_sz){
 	if (!(*len & (*len - 1)))
 		if ((*list = realloc(*list, *len * elm_sz << 1)) == NULL)
 			return E_MALLOC;
@@ -48,7 +64,7 @@ int a_list_add(void** list, unsigned int* len, size_t elm_sz){
 	return 0;
 }
 
-int reverse_bits(int x, int len){
+static int reverse_bits(int x, int len){
 	int f;
 	for (f = 0; len > 0; len--){
 		f |= (x & 1);
@@ -57,5 +73,7 @@ int reverse_bits(int x, int len){
 	}
 	return f;
 }
+
+#pragma GCC diagnostic pop
 
 #endif

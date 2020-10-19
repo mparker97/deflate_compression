@@ -317,13 +317,12 @@ repeat_copy:
 		}
 		first_window = 0;
 	}
-	
 }
 
 int main(int argc, char* argv[]){
 	struct deflate_compr com;
 	struct h_tree_builder htb;
-	if (argc != 1){
+	if (argc != 2){
 		fprintf(stderr, "USAGE: %s FILE\n", argv[0]);
 		exit(1);
 	}
@@ -332,6 +331,7 @@ int main(int argc, char* argv[]){
 		fprintf(stderr, "Failed to open file\n");
 		exit(1);
 	}
+	deflate_compr_init(&com);
 	com.sliding_window = 1 << 15;
 	h_tree_builder_init(&htb, NUM_LITLEN_CODES + NUM_DIST_CODES);
 	printf("codes, ebits, ll_aht, d_aht, ratio\n");

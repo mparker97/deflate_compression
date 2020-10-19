@@ -20,7 +20,7 @@
 #define E_ZBTYPE DEFLATE_ERROR_MASK + 14 // invalid compression block type
 
 
-const unsigned char deflate_errors[NUM_DEFLATE_ERRORS + 1][ERROR_NAME_LEN + 1] = {
+const static unsigned char deflate_errors[NUM_DEFLATE_ERRORS + 1][ERROR_NAME_LEN + 1] = {
 	[DEFLATE_ERROR_MASK - E_HUFAMB] = "E_HUFAMB",
 	[DEFLATE_ERROR_MASK - E_HUFINV] = "E_HUFINV",
 	[DEFLATE_ERROR_MASK - E_HUFVAL] = "E_HUFVAL",

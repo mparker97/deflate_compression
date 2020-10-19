@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include "include/globals.h"
-#include "include/aht.h"
 #include "include/global_errors.h"
+#include "include/aht.h"
 
 void aht_init(struct aht* aht, short sz){
 	struct aht_node* ahtn;

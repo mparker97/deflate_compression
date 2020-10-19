@@ -3,6 +3,8 @@
 #include <string.h>
 #include "../../include/global_errors.h"
 
+// When erroring in a chunk, fail_out restores the chunk loop checkpoint, which calls chunk_failure and then prints the chunks code there
+
 #define PNG_ERROR_MASK (2U << 24)
 #define NUM_PNG_ERRORS 16
 #define E_INVHDR PNG_ERROR_MASK + 1  // Invalid header
@@ -22,7 +24,7 @@
 #define E_CHFRAG PNG_ERROR_MASK + 15 // Fragmented chunk
 #define E_NODAT  PNG_ERROR_MASK + 16 // No data chunk
 
-const unsigned char png_errors[NUM_PNG_ERRORS + 1][ERROR_NAME_LEN + 1] = {
+const static unsigned char png_errors[NUM_PNG_ERRORS + 1][ERROR_NAME_LEN + 1] = {
 	[PNG_ERROR_MASK + E_INVHDR] = "E_CHNAME",
 	[PNG_ERROR_MASK + E_CHNAME] = "E_CHNAME",
 	[PNG_ERROR_MASK + E_TXTRST] = "E_TXTRST",
