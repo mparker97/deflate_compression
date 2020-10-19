@@ -93,7 +93,7 @@ void deflate_compr_init(struct deflate_compr* com){
 	if (!(com->dup_entries = malloc(com->sliding_window * sizeof(swi)))){
 		fail_out(E_MALLOC);
 	}
-	if (!(com->dup_ht = malloc(DUP_HT_SZ * sizeof(struct dup_hash_entry)))){
+	if (!(com->dup_ht = calloc(DUP_HT_SZ, sizeof(struct dup_hash_entry)))){
 		fail_out(E_MALLOC);
 	}
 	com->e = com->d + com->sliding_window;
@@ -131,6 +131,8 @@ short dup_hash(unsigned char* p){
 	z = (z | (z << 2)) & 0x00249249;
 	return (x | (y << 1) | (z << 2)) % DUP_HT_SZ;
 }
+
+// TODO: figure out bound for reading in and stuff
 
 void fetch(struct deflate_compr* com, unsigned char* p, swi len){
 	int ret = fread(p, sizeof(unsigned char), len, f); // TODO: get bytes here
@@ -331,9 +333,9 @@ int main(int argc, char* argv[]){
 		fprintf(stderr, "Failed to open file\n");
 		exit(1);
 	}
-	deflate_compr_init(&com);
 	com.sliding_window = 1 << 15;
-	h_tree_builder_init(&htb, NUM_LITLEN_CODES + NUM_DIST_CODES);
+	deflate_compr_init(&com);
+	h_tree_builder_init(&htb, 19);
 	printf("codes, ebits, ll_aht, d_aht, ratio\n");
 	process_loop(&com, &htb);
 	fclose(f);

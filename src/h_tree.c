@@ -68,23 +68,23 @@ void h_tree_add(struct h_tree_head* h, h_code c, int codelen, int val){
 }
 
 int h_tree_d_lens(struct htbq* htn, struct aht* aht0, struct aht* aht1, struct hlit_hdist_hclen* ldc){
-	short i, j, h0, hlit, hdist;
-	unsigned short d;
+	int i, j, h0, hlit, hdist, d;
 	int bit_count = 5 + 5 + 4 + 4 * 3; // HLIT, HDIST, HCLEN, initial HCLEN codes
 	for (i = 0; i < 19; i++){
 		htn[i].val = i;
 	}
-	for (h0 = NUM_LITLEN_CODES + NUM_DIST_CODES - 1; h0 >= NUM_LITLEN_CODES + 1 && aht0->tree[h0].depth == 0; h0--); // get HDIST from this
-	hdist = h0 - NUM_LITLEN_CODES + 1;
+	for (h0 = NUM_DIST_CODES - 1; h0 >= 1 && aht1->tree[h0].depth == 0; h0--); // get HDIST from this
+	hdist = h0 + 1;
 	for (h0 = NUM_LITLEN_CODES - 1; h0 >= 257 && aht0->tree[h0].depth == 0; h0--); // get HLIT from this
-	hlit = h0 + 1;
+	hlit = ++h0;
 	
-	// leave h0 as hlist for the first run (lit/len); set to NUM_LIT_LEN_CODES + h_dist for the second run (dist)
+	// leave h0 as hlit for the first run (lit/len); set to h_dist for the second run (dist)
 	for (i = 0; i < h0; i++){
 		d = aht0->tree[i].depth;
 		for (j = i + 1;; j++){ // i is the RLE base; j is the RLE bound
 			if (j == h0){
 				if (h0 == hlit){
+					// switch over to dist aht
 					j = 0;
 					i -= h0; // shift i down along with j
 					h0 = hdist;
@@ -113,6 +113,7 @@ finish_off:
 				}
 				else{
 					htn[d].weight++;
+					i++;
 					// 16
 					while (j - i >= 3){
 						i += min(j - i, 6);
@@ -141,7 +142,7 @@ finish_off:
 	return bit_count;
 }
 
-void h_tree_builder_init(struct h_tree_builder* htb, short sz){
+void h_tree_builder_init(struct h_tree_builder* htb, int sz){
 	h_tree_init(&htb->head, sz);
 	htb->q = calloc(sz, sizeof(struct htbq));
 	if (!htb->q){
@@ -151,6 +152,7 @@ void h_tree_builder_init(struct h_tree_builder* htb, short sz){
 	if (!htb->weights){
 		fail_out(E_MALLOC);
 	}
+	htb->cap = sz;
 	htb->h0 = -1;
 	htb->h1 = htb->t1 = 0;
 }
@@ -162,7 +164,8 @@ void h_tree_builder_deinit(struct h_tree_builder* htb){
 }
 
 void h_tree_builder_reset(struct h_tree_builder* htb){
-	memset(htb->weights, 0, (htb->head.sz + 1) * sizeof(unsigned int));
+	memset(htb->weights, 0, (htb->cap + 1) * sizeof(unsigned int));
+	memset(htb->q, 0, htb->cap * sizeof(struct htbq));
 	htb->h0 = -1;
 	htb->h1 = htb->t1 = 0;
 }
@@ -177,7 +180,7 @@ static int htbq_comp(const void* a, const void* b){
 }
 
 static inline unsigned int h_tree_builder_peek0(struct h_tree_builder* htb){
-	if (htb->h0 < htb->head.sz){
+	if (htb->h0 < htb->cap){
 		return htb->q[htb->h0].weight;
 	}
 	else{
@@ -185,7 +188,7 @@ static inline unsigned int h_tree_builder_peek0(struct h_tree_builder* htb){
 	}
 }
 
-static inline short h_tree_builder_pop0(struct h_tree_builder* htb){
+static inline int h_tree_builder_pop0(struct h_tree_builder* htb){
 	htb->weights[htb->t1] += htb->q[htb->h0].weight;
 	return htb->h0++;
 }
@@ -199,21 +202,22 @@ static inline unsigned int h_tree_builder_peek1(struct h_tree_builder* htb){
 	}
 }
 
-static inline short h_tree_builder_pop1(struct h_tree_builder* htb){
+static inline int h_tree_builder_pop1(struct h_tree_builder* htb){
 	htb->weights[htb->t1] += htb->weights[htb->h1];
 	return htb->h1++;
 }
 
-static inline void h_tree_builder_push(struct h_tree_builder* htb, short l, short r){
+static inline void h_tree_builder_push(struct h_tree_builder* htb, int l, int r){
 	htb->head.tree[htb->t1].left = l;
 	htb->head.tree[htb->t1].right = r;
+	htb->head.sz++;
 	htb->t1++;
 }
 
 void h_tree_builder_build(struct h_tree_builder* htb){
 	unsigned int p0, p1;
-	short i0, i1;
-	qsort(htb->q, htb->head.sz, sizeof(struct htbq), htbq_comp);
+	int i0, i1;
+	qsort(htb->q, htb->cap, sizeof(struct htbq), htbq_comp);
 	for (htb->h0 = 0; htb->q[htb->h0].weight == 0; htb->h0++);
 	for (;;){
 		p0 = h_tree_builder_peek0(htb);
@@ -268,5 +272,5 @@ static unsigned int h_tree_builder_score_helper(struct h_tree_builder* htb, stru
 }
 
 unsigned int h_tree_builder_score(struct h_tree_builder* htb){
-	return h_tree_builder_score_helper(htb, htb->head.tree + htb->t1 - 1, 0);
+	return h_tree_builder_score_helper(htb, htb->head.tree + htb->t1 - 1, 1);
 }

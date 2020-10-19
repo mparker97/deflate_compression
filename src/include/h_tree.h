@@ -36,18 +36,18 @@ struct h_tree_builder{
 	struct h_tree_head head;
 	struct htbq* q;
 	unsigned int* weights;
-	short h0, h1, t1; // 0 is queue of leaves; 1 is tree of non-leaves
+	int cap, h0, h1, t1; // 0 is queue of leaves; 1 is tree of non-leaves
 };
 
 struct hlit_hdist_hclen{
-	short hlit, hdist, hclen;
+	int hlit, hdist, hclen;
 };
 
 void h_tree_init(struct h_tree_head* h, int sz);
 void h_tree_deinit(struct h_tree_head* h);
 int h_tree_lookup(struct h_tree_head* h, unsigned char** byte, int* bit);
 void h_tree_add(struct h_tree_head* h, h_code c, int codelen, int val);
-void h_tree_builder_init(struct h_tree_builder* htb, short sz);
+void h_tree_builder_init(struct h_tree_builder* htb, int sz);
 void h_tree_builder_deinit(struct h_tree_builder* htb);
 void h_tree_builder_reset(struct h_tree_builder* htb);
 void h_tree_builder_build(struct h_tree_builder* htb);

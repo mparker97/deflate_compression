@@ -27,12 +27,12 @@ struct aht{
 	struct aht_node* tree;
 	// The first sz spots are dedicated to their respective symbols; the next sz spots are dedicated to non-leaf nodes
 	unsigned int score;
-	short sz;
-	short nyt; // not yet transferred node index; also the last node added to the end of tree
+	int sz;
+	int nyt; // not yet transferred node index; also the last node added to the end of tree
 };
 
-void aht_init(struct aht* aht, short sz);
+void aht_init(struct aht* aht, int sz);
 void aht_deinit(struct aht* aht);
-void aht_insert(struct aht* aht, short c);
+void aht_insert(struct aht* aht, int c);
 
 #endif

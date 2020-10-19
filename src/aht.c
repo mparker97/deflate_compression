@@ -5,7 +5,7 @@
 #include "include/global_errors.h"
 #include "include/aht.h"
 
-void aht_init(struct aht* aht, short sz){
+void aht_init(struct aht* aht, int sz){
 	struct aht_node* ahtn;
 	aht->tree = calloc(sz * 2, sizeof(struct aht_node));
 	if (!aht->tree){
@@ -37,13 +37,13 @@ static struct aht_node* aht_get_block_leader(struct aht* aht, struct aht_node* q
 	return q;
 }
 
-static void aht_cascade_update_depth(struct aht* aht, struct aht_node* ahtn, unsigned short d){
+static void aht_cascade_update_depth(struct aht* aht, struct aht_node* ahtn, int d){
 	if (ahtn->left >= 0){
 		aht_cascade_update_depth(aht, aht->tree + ahtn->left, d + 1);
 		aht_cascade_update_depth(aht, aht->tree + ahtn->right, d + 1);
 	}
 	else{
-		aht->score += ((int)d - ahtn->depth) * ahtn->weight;
+		aht->score += (d - ahtn->depth) * ahtn->weight;
 	}
 	ahtn->depth = d;
 }
@@ -222,7 +222,7 @@ static short aht_sibling(struct aht* aht, struct aht_node* ahtn){
 	return ret;
 }
 
-void aht_insert(struct aht* aht, short c){
+void aht_insert(struct aht* aht, int c){
 	struct aht_node* q;
 	struct aht_node* l2i = NULL; // leaf to increment
 	q = aht->tree + c;
