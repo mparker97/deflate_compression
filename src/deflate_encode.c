@@ -76,8 +76,8 @@ struct deflate_compr{
 	unsigned char* d, *e;
 	swi* dup_entries;
 	struct dup_hash_entry* dup_ht;
+	unsigned char* bound;
 	int sliding_window;
-	int bound;
 	unsigned char read_ahead; // bool
 	unsigned char done;
 };
@@ -136,8 +136,8 @@ short dup_hash(unsigned char* p){
 
 void fetch(struct deflate_compr* com, unsigned char* p, swi len){
 	int ret = fread(p, sizeof(unsigned char), len, f); // TODO: get bytes here
-	com->bound = p - com->e + ret;
-	if (!com->bound){
+	com->bound = p + ret;
+	if (!ret){
 		com->done = 1;
 	}
 }
@@ -153,7 +153,6 @@ void fetch_sliding_window(struct deflate_compr* com){
 
 void fetch_ahead(struct deflate_compr* com){
 	fetch(com, com->e + 2, MAXLEN - 2);
-	com->bound = com->sliding_window; // prevent check_dup_str loop from breaking
 	com->read_ahead = 1;
 	com->e[0] = com->e[com->sliding_window];
 	com->e[1] = com->e[com->sliding_window + 1];
@@ -162,15 +161,15 @@ void fetch_ahead(struct deflate_compr* com){
 // Returns the common subsequence length of the current position 'str' and the duplicate entry 'dup'
 int check_dup_str(struct deflate_compr* com, unsigned char* str, unsigned char* dup){
 	int ret = 0;
-	while (*(str++) == *(dup++)){
-		if (++ret == MAXLEN || str > com->e + 2 + com->bound)
+	while (str < com->bound && *(str++) == *(dup++)){
+		if (++ret == MAXLEN)// || str > com->bound)
 			break;
-		if (str == com->e + com->sliding_window + 2){
+		if (str > com->e + 2 + com->sliding_window){
 			if (!com->read_ahead){
 				fetch_ahead(com);
-				if (com->done){ // nothing fetched; done
-					break;
-				}
+				//if (com->done){ // nothing fetched; done
+				//	break;
+				//}
 			}
 			str = com->e + 2;
 		}
@@ -234,7 +233,7 @@ void process_loop(struct deflate_compr* com, struct h_tree_builder* htb){
 		if (com->done) // finished
 			break;
 		com->read_ahead = 0;
-		for (; i < com->bound;){ // for each character in sliding window
+		for (; i < com->bound - com->e;){ // for each character in sliding window
 			hash_new = dup_hash(com->e + i);
 			dh = com->dup_ht + hash_new;
 			hash_new = dh->ptr; // hash_new now maintains the hash chain element index
@@ -259,20 +258,20 @@ void process_loop(struct deflate_compr* com, struct h_tree_builder* htb){
 			dup_carry_over = 0;
 			if (max_len < 3){
 				j = i + 1;
-				printf("Literal %c (%d)\n", com->e[i], com->e[i]);
+				//printf("Literal %c (%d)\n", com->e[i], com->e[i]);
 				// TODO: write literal
 				aht_insert(&com->ll_aht, com->e[i]);
 			}
 			else{
 				max_idx = com->e + i - (com->d + max_idx);
-				printf("Len: %d, dist: %d\n", max_len, max_idx);
+				//printf("Len: %d, dist: %d\n", max_len, max_idx);
 				aht_insert(&com->ll_aht, get_len_code(max_len, NULL, NULL));
 				aht_insert(&com->d_aht, get_dist_code(max_idx, NULL, NULL));
 				// TODO: write len/dist pair
 				
-				if (i > com->sliding_window - max_len){ // prevent overflow
+				if (i + max_len > com->sliding_window + 2){ // prevent overflow
 					dup_carry_over = i + max_len - com->sliding_window;
-					j = com->sliding_window;
+					j = com->sliding_window + 2; // copy from i up to sliding_window + 2, then copy from com->e + 2 up to dup_carry_over
 				}
 				else{
 					j = i + max_len;
@@ -302,12 +301,12 @@ repeat_copy:
 				com->d[i] = com->e[i]; // copy char to old sliding window
 			}
 			if (dup_carry_over > 0){
-				i = 0;
+				i = 2;
 				j = dup_carry_over;
 				dup_carry_over = -1;
 				goto repeat_copy;
 			}
-			else if (dup_carry_over < 0){
+			else if (dup_carry_over < 0){ // did a wrap around, break out to move to the next sliding window
 				break;
 			}
 			

@@ -1,0 +1,17 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(){
+	char buf[64];
+	int i, j;
+	char* c;
+	while (fgets(buf, 64, stdin)){
+		for (i = 0; i < 3; i++){
+			c = strtok(buf, " ");
+			j = atoi(c);
+			printf("%c", j);
+		}
+	}
+	printf("\n");
+	return 0;
+}
