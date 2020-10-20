@@ -13,7 +13,7 @@ Adaptive Huffman trees are rebalanced with each insert operation to ensure minim
 #define AHT_H
 
 struct aht_node{ // adaptive Huffman tree node
-	unsigned int weight;
+	unsigned int weight; // frequency
 	unsigned short depth;
 	// the following shorts are indices into the array holding the tree
 	short parent;
