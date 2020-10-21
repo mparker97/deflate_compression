@@ -38,7 +38,18 @@ static struct aht_node* aht_get_block_leader(struct aht* aht, struct aht_node* q
 }
 
 static void aht_cascade_update_depth(struct aht* aht, struct aht_node* ahtn, int d){
+	//#ifdef _DEBUG
+	if (ahtn->depth < 0){
+		fprintf(stderr, "\033[1;31maht cycle detected at node %ld\033[0m\n", ahtn - aht->tree);
+		aht_print(aht);
+		exit(1);
+	}
+	//#endif
+	
 	if (ahtn->left >= 0){
+		//#ifdef _DEBUG
+		ahtn->depth = -d;
+		//#endif
 		aht_cascade_update_depth(aht, aht->tree + ahtn->left, d + 1);
 		aht_cascade_update_depth(aht, aht->tree + ahtn->right, d + 1);
 	}
@@ -262,41 +273,55 @@ void aht_insert(struct aht* aht, int c){
 	}
 }
 
-void aht_print_helper(struct aht* aht, struct aht_node* ahtn, int d){
+void aht_print_helper(struct aht* aht, struct aht_node* ahtn, char* bm, int d){
 	unsigned char buf[d + 1];
+	
+	if (bm[ahtn - aht->tree])
+		return;
+	bm[ahtn - aht->tree] = 1;
+	
 	memset(buf, '\t', d);
 	buf[d] = 0;
-	printf("%s", buf);
+	fprintf(stderr, "%s", buf);
 	if (ahtn->left < 0)
-		printf("\033[1;32m");
+		fprintf(stderr, "\033[1;32m");
 	else
-		printf("\033[1;33m");
-	printf("----ID: %ld\033[0m", ahtn - aht->tree);
+		fprintf(stderr, "\033[1;33m");
+	fprintf(stderr, "----ID: %ld\033[0m", ahtn - aht->tree);
 	if (ahtn - aht->tree <= 255)
-		printf(" (%c)", (int)(ahtn - aht->tree));
-	printf("\n");
-	printf("%sweight: %d\n", buf, ahtn->weight);
-	printf("%sdepth: %d\n", buf, ahtn->depth);
+		fprintf(stderr, " (%c)", (int)(ahtn - aht->tree));
+	fprintf(stderr, "\n");
+	fprintf(stderr, "%sweight: %d\n", buf, ahtn->weight);
+	fprintf(stderr, "%sdepth: %d", buf, ahtn->depth);
+	if (ahtn->depth != d)
+		fprintf(stderr, "\033[0;31m (!%d)\033[0m", d);
+	fprintf(stderr, "\n");
 	if (ahtn->parent >= 0)
-		printf("%sparent: %d\n", buf, ahtn->parent);
+		fprintf(stderr, "%sparent: %d\n", buf, ahtn->parent);
 	if (ahtn->left >= 0)
-		printf("%sleft: %d\n", buf, ahtn->left);
+		fprintf(stderr, "%sleft: %d\n", buf, ahtn->left);
 	if (ahtn->right >= 0)
-		printf("%sright: %d\n", buf, ahtn->right);
+		fprintf(stderr, "%sright: %d\n", buf, ahtn->right);
 	if (ahtn->block_prev >= 0)
-		printf("%sprev: %d\n", buf, ahtn->block_prev);
+		fprintf(stderr, "%sprev: %d\n", buf, ahtn->block_prev);
 	if (ahtn->block_next >= 0)
-		printf("%snext: %d\n", buf, ahtn->block_next);
+		fprintf(stderr, "%snext: %d\n", buf, ahtn->block_next);
 	
 	if (ahtn->left >= 0)
-		aht_print_helper(aht, aht->tree + ahtn->left, d + 1);
+		aht_print_helper(aht, aht->tree + ahtn->left, bm, d + 1);
 	if (ahtn->right >= 0)
-		aht_print_helper(aht, aht->tree + ahtn->right, d + 1);
+		aht_print_helper(aht, aht->tree + ahtn->right, bm, d + 1);
 }
 
 void aht_print(struct aht* aht){
-	printf("\033[1;31mSCORE: %d\033[0m\n", aht->score);
-	aht_print_helper(aht, aht->tree + aht->sz, 0);
+	char* bm = calloc(aht->sz * 2, sizeof(char));
+	if (!bm)
+		fail_out(E_MALLOC);
+	
+	fprintf(stderr, "sz: %d\nnyt: %d\n", aht->sz, aht->nyt);
+	fprintf(stderr, "\033[1;31mSCORE: %d\033[0m\n", aht->score);
+	aht_print_helper(aht, aht->tree + aht->sz, bm, 0);
+	free(bm);
 }
 
 static unsigned int aht_check_score_helper(struct aht* aht, struct aht_node* ahtn){
@@ -311,11 +336,11 @@ static unsigned int aht_check_score_helper(struct aht* aht, struct aht_node* aht
 int aht_check_score(struct aht* aht){
 	unsigned int s = aht_check_score_helper(aht, aht->tree + aht->sz);
 	if (s == aht->score){
-		printf("PASS (%d)\n", aht->score);
+		fprintf(stderr, "PASS (%d)\n", aht->score);
 		return 1;
 	}
 	else{
-		printf("FAIL (expected %u, got %u)\n", aht->score, s);
+		fprintf(stderr, "FAIL (expected %u, got %u)\n", aht->score, s);
 		return 0;
 	}
 }
