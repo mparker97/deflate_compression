@@ -14,7 +14,7 @@ Adaptive Huffman trees are rebalanced with each insert operation to ensure minim
 
 struct aht_node{ // adaptive Huffman tree node
 	unsigned int weight; // frequency
-	unsigned short depth;
+	short depth;
 	// the following shorts are indices into the array holding the tree
 	short parent;
 	short left;
@@ -27,12 +27,13 @@ struct aht{
 	struct aht_node* tree;
 	// The first sz spots are dedicated to their respective symbols; the next sz spots are dedicated to non-leaf nodes
 	unsigned int score;
-	int sz;
+	int sz; // always stays at number of symbols
 	int nyt; // not yet transferred node index; also the last node added to the end of tree
 };
 
 void aht_init(struct aht* aht, int sz);
 void aht_deinit(struct aht* aht);
 void aht_insert(struct aht* aht, int c);
+void aht_print(struct aht* aht);
 
 #endif
