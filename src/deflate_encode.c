@@ -255,17 +255,18 @@ void process_loop(struct deflate_compr* com, struct h_tree_builder* htb){
 				hash_new = com->dup_entries[hash_new]; // proceed to next hash element
 			}
 			
-			printf("%d bytes processed. ", k + 1);
+			//printf("%d bytes processed. ", k + 1);
 			dup_carry_over = 0;
 			if (max_len < 3){
 				j = i + 1;
-				printf("Literal %c (%d)\n", com->e[i], com->e[i]);
+				//printf("Literal %c (%d)\n", com->e[i], com->e[i]);
 				// TODO: write literal
 				aht_insert(&com->ll_aht, com->e[i]);
+				max_len = 1;
 			}
 			else{
 				max_idx = com->e + i - (com->d + max_idx);
-				printf("Len: %d, dist: %d\n", max_len, max_idx);
+				//printf("Len: %d, dist: %d\n", max_len, max_idx);
 				aht_insert(&com->ll_aht, get_len_code(max_len, NULL, NULL));
 				aht_insert(&com->d_aht, get_dist_code(max_idx, NULL, NULL));
 				// TODO: write len/dist pair
@@ -284,7 +285,8 @@ void process_loop(struct deflate_compr* com, struct h_tree_builder* htb){
 			h_tree_builder_build(htb);
 			sc2 = h_tree_builder_score(htb);
 			//printf("Overhead score (codes + bits): %d + %d = %d\n", sc2, sc, sc + sc2);
-			printf("%d, %d, %d, %d, %f\n", sc2, sc, com->ll_aht.score, com->d_aht.score, (double)(com->ll_aht.score + com->d_aht.score + sc + sc2) / (k + 1));
+			//printf("%d, %d, %d, %d, %d, %f\n", k + max_len, sc2, sc, com->ll_aht.score, com->d_aht.score, (double)(com->ll_aht.score + com->d_aht.score + sc + sc2) / (k + max_len));
+			printf("%d, %d\n", k + max_len, com->ll_aht.score + com->d_aht.score + sc + sc2);
 			
 			// update sliding window structures
 repeat_copy:
@@ -336,7 +338,8 @@ int main(int argc, char* argv[]){
 	com.sliding_window = 1 << 15;
 	deflate_compr_init(&com);
 	h_tree_builder_init(&htb, 19);
-	printf("codes, ebits, ll_aht, d_aht, ratio\n");
+	//printf("bytes, codes, ebits, ll_aht, d_aht, ratio\n");
+	printf("bytes, compressed_bits\n");
 	process_loop(&com, &htb);
 	fclose(f);
 }
