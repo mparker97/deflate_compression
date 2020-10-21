@@ -154,8 +154,8 @@ void fetch_sliding_window(struct deflate_compr* com){
 void fetch_ahead(struct deflate_compr* com){
 	fetch(com, com->e + 2, MAXLEN - 2);
 	com->read_ahead = 1;
-	com->e[0] = com->e[com->sliding_window];
-	com->e[1] = com->e[com->sliding_window + 1];
+	//com->e[0] = com->e[com->sliding_window];
+	//com->e[1] = com->e[com->sliding_window + 1];
 }
 
 // Returns the common subsequence length of the current position 'str' and the duplicate entry 'dup'
@@ -267,13 +267,14 @@ void process_loop(struct deflate_compr* com, struct h_tree_builder* htb){
 			else{
 				max_idx = com->e + i - (com->d + max_idx);
 				//printf("Len: %d, dist: %d\n", max_len, max_idx);
+				
 				aht_insert(&com->ll_aht, get_len_code(max_len, NULL, NULL));
 				aht_insert(&com->d_aht, get_dist_code(max_idx, NULL, NULL));
 				// TODO: write len/dist pair
 				
-				if (i + max_len > com->sliding_window + 2){ // prevent overflow
+				if (i + max_len > com->sliding_window){ // prevent overflow
 					dup_carry_over = i + max_len - com->sliding_window;
-					j = com->sliding_window + 2; // copy from i up to sliding_window + 2, then copy from com->e + 2 up to dup_carry_over
+					j = com->sliding_window; // copy from i up to sliding_window, then copy from com->e up to dup_carry_over
 				}
 				else{
 					j = i + max_len;
@@ -304,9 +305,12 @@ repeat_copy:
 				com->d[i] = com->e[i]; // copy char to old sliding window
 			}
 			if (dup_carry_over > 0){
-				i = 2;
+				i = 0;
 				j = dup_carry_over;
 				dup_carry_over = -1;
+				com->e[0] = com->e[com->sliding_window];
+				com->e[1] = com->e[com->sliding_window + 1];
+				// if the string breached past sliding window + 1, fetch_ahead had brought in the chars past e + 1
 				goto repeat_copy;
 			}
 			else if (dup_carry_over < 0){ // did a wrap around, break out to move to the next sliding window
@@ -314,9 +318,7 @@ repeat_copy:
 			}
 			
 		}
-		if (!com->read_ahead){ // copy spillover chars if haven't already
-			com->e[0] = com->e[com->sliding_window];
-			com->e[1] = com->e[com->sliding_window + 1];
+		if (!com->read_ahead){
 			i = 0;
 		}
 		first_window = 0;
