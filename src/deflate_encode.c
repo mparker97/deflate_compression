@@ -215,36 +215,40 @@ int get_dist_code(int x, int* peb, int* pebits){
 }
 
 void process_loop(struct deflate_compr* com, struct h_tree_builder* htb){
-	int i, j, k, t;
+	int i, j, k, t; // i and j are loop iterators, k is the total processed byte count, t is a scratch variable
 	int c; // offset of dup, taken from com->d
 	
 	struct dup_hash_entry* dh;
-	swi hash_new;
-	int dup_carry_over;
+	swi hash;
+	int dup_carry_over; // number of characters wrapping around to the next sliding window, which must be copied separately
 	
-	int max_len;
-	int max_idx;
-	int first_window = 1;
-	int sc, sc2;
+	int max_len; // maximum dup match length found from the hash chain
+	int max_idx; // maximum dup match index found from the hash chain
+	int first_window = 1; // bool to treat com->d as invalid for the first sliding window
+	int sc, sc2; // scores; could do without
+	
+	// insert end of block token (256) into ll_aht immediately, since it will always be there once
+	aht_insert(com->ll_aht, 256);
+	k = 1;
 	
 	fetch(com, com->e, 2);
-	for (i = k = 0;;){
+	for (i = 0;;){
 		fetch_sliding_window(com); // read next sliding window into 'e' + 2
 		if (com->done) // finished
 			break;
 		com->read_ahead = 0;
 		for (; i < com->bound - com->e;){ // for each character in sliding window
-			hash_new = dup_hash(com->e + i);
-			dh = com->dup_ht + hash_new;
-			hash_new = dh->ptr; // hash_new now maintains the hash chain element index
+			hash = dup_hash(com->e + i);
+			dh = com->dup_ht + hash;
+			hash = dh->ptr; // hash now maintains the hash chain element index
 			max_len = 2; // need at least 3 to make len/dist worth it
 			max_idx = -1;
 			for (j = 0; j < dh->len; j++){ // loop through hash chain
-				if (hash_new < i){ // element is within this sliding window
-					c = hash_new + com->sliding_window;
+				if (hash < i){ // element is within this sliding window
+					c = hash + com->sliding_window;
 				}
 				else{ // element is within previous sliding window
-					c = hash_new;
+					c = hash;
 				}
 				// check for dup string and save if it's the longest
 				t = check_dup_str(com, com->e + i, com->d + c);
@@ -252,7 +256,7 @@ void process_loop(struct deflate_compr* com, struct h_tree_builder* htb){
 					max_len = t;
 					max_idx = c;
 				}
-				hash_new = com->dup_entries[hash_new]; // proceed to next hash element
+				hash = com->dup_entries[hash]; // proceed to next hash element
 			}
 			
 			//printf("%d bytes processed. ", k + 1);
