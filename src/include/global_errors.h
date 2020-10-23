@@ -8,21 +8,25 @@
 #define ERROR_CLEAR_MASK (127U << 24)
 
 #define ERROR_NAME_LEN 8 // length of error names (without \0)
-#define NUM_GLOBAL_ERRORS 10 // length of the following errors list // TODO
+#define NUM_GLOBAL_ERRORS 12 // length of the following errors list // TODO
 #define E_LEN    1  // Improper length
 #define E_MALLOC 2  // Malloc failed
-#define E_CRC    3  // CRC checksum failed
-#define E_SZ     4  // Improper size
-#define E_EXIST  5  // Exists
-#define E_NEXIST 6  // Doesn't exist
-#define E_NONULL 7  // Not NULL
-#define E_RANGE  8  // Out of range
-#define E_INVAL  9  // Invalid
-#define E_RESERV 10 // Reserved
+#define E_FORK   3  // Fork failed
+#define E_PIPE   4  // Pipe failed
+#define E_CRC    5  // CRC checksum failed
+#define E_SZ     6  // Improper size
+#define E_EXIST  7  // Exists
+#define E_NEXIST 8  // Doesn't exist
+#define E_NONULL 9  // Not NULL
+#define E_RANGE  10  // Out of range
+#define E_INVAL  11 // Invalid
+#define E_RESERV 12 // Reserved
 
 const static unsigned char global_errors[NUM_GLOBAL_ERRORS + 1][ERROR_NAME_LEN + 1] = {
 	[E_LEN   ] = "E_LEN   ",
 	[E_MALLOC] = "E_MALLOC",
+	[E_FORK  ] = "E_FORK  ",
+	[E_PIPE  ] = "E_PIPE  ",
 	[E_CRC   ] = "E_CRC   ",
 	[E_SZ    ] = "E_SZ    ",
 	[E_EXIST ] = "E_EXIST ",

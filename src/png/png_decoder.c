@@ -95,7 +95,7 @@ void cleanup(struct png_decoder* pd){
 }
 
 void dissect_error(int e, unsigned char* e1, unsigned char* e2){
-	memcpy(e1, errors[e >> CH_NUM_TYPES_ORDER], ERROR_NAME_LEN);
+	memcpy(e1, global_errors[e >> CH_NUM_TYPES_ORDER], ERROR_NAME_LEN);
 	e1[ERROR_NAME_LEN] = '\0';
 	memcpy(e2, chunk_types[e & ((1 << CH_NUM_TYPES_ORDER) - 1)], CH_NAME_LEN);
 	e2[CH_NAME_LEN] = '\0';
@@ -114,7 +114,7 @@ void check_crc(struct png_decoder* pd){
 	return 1;
 }
 
-void ch_failure(struct png_decoder* pd;, int ch, int e){
+void ch_failure(struct png_decoder* pd, int ch, int e){
 	unsigned char e1[ERROR_NAME_LEN + 1], e2[CH_NAME_LEN + 1], n[CH_NAME_LEN + 1];
 	if (e < 0)
 		return; // no error
