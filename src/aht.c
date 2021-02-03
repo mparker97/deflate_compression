@@ -25,7 +25,7 @@ void aht_deinit(struct aht* aht){
 	freec(aht->tree);
 }
 
-static struct aht_node* aht_get_block_leader(struct aht* aht, struct aht_node* q){
+static struct aht_node* aht_get_block_leader(const struct aht* aht, struct aht_node* q){
 	struct aht_node* n;
 	while (q->block_next >= 0){ // find leader
 		n = aht->tree + q->block_next;
@@ -215,7 +215,7 @@ static void aht_interchange_leaf(struct aht* aht, struct aht_node* q){
 	}
 }
 
-static short aht_sibling(struct aht* aht, struct aht_node* ahtn){
+static short aht_sibling(const struct aht* aht, const struct aht_node* ahtn){
 	struct aht_node* p;
 	short ret;
 	if (ahtn->parent < 0){ // no parent means no sibling
@@ -273,7 +273,7 @@ void aht_insert(struct aht* aht, int c){
 	}
 }
 
-void aht_print_helper(struct aht* aht, struct aht_node* ahtn, char* bm, int d){
+void aht_print_helper(const struct aht* aht, struct aht_node* ahtn, char* bm, int d){
 	unsigned char buf[d + 1];
 	
 	if (bm[ahtn - aht->tree])
@@ -313,7 +313,7 @@ void aht_print_helper(struct aht* aht, struct aht_node* ahtn, char* bm, int d){
 		aht_print_helper(aht, aht->tree + ahtn->right, bm, d + 1);
 }
 
-void aht_print(struct aht* aht){
+void aht_print(const struct aht* aht){
 	char* bm = calloc(aht->sz * 2, sizeof(char));
 	if (!bm)
 		fail_out(E_MALLOC);
@@ -324,7 +324,7 @@ void aht_print(struct aht* aht){
 	free(bm);
 }
 
-static unsigned int aht_check_score_helper(struct aht* aht, struct aht_node* ahtn){
+static unsigned int aht_check_score_helper(const struct aht* aht, struct aht_node* ahtn){
 	if (ahtn->left < 0){
 		return ahtn->depth * ahtn->weight;
 	}
@@ -333,7 +333,7 @@ static unsigned int aht_check_score_helper(struct aht* aht, struct aht_node* aht
 			+ aht_check_score_helper(aht, aht->tree + ahtn->right);
 	}
 }
-int aht_check_score(struct aht* aht){
+int aht_check_score(const struct aht* aht){
 	unsigned int s = aht_check_score_helper(aht, aht->tree + aht->sz);
 	if (s == aht->score){
 		fprintf(stderr, "PASS (%d)\n", aht->score);

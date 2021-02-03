@@ -1,3 +1,10 @@
+/* Checks the process of encoding of the file by capturing the lit/len/dist pairs as they are produced
+	and consulting its own sliding window record to print what this encoding would give upon decoding
+	Thus, it verifies the encoding as it is happening by immediately decoding each token emitted to see
+	if it matches the input.
+	The input file, as of now, is not programmatically verified; this just prints out what the decoding is
+*/
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>

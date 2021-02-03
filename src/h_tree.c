@@ -67,7 +67,7 @@ void h_tree_add(struct h_tree_head* h, h_code c, int codelen, int val){
 	*v = H_TREE_REP(val);
 }
 
-int h_tree_d_lens(struct htbq* htn, struct aht* aht0, struct aht* aht1, struct hlit_hdist_hclen* ldc){
+int h_tree_d_lens(struct htbq* htn, const struct aht* aht0, const struct aht* aht1, struct hlit_hdist_hclen* ldc){
 	int i, j, h0, hlit, hdist, d;
 	int bit_count = 5 + 5 + 4 + 4 * 3; // HLIT, HDIST, HCLEN, initial HCLEN codes
 	for (i = 0; i < 19; i++){
@@ -184,7 +184,7 @@ static int htbq_comp(const void* a, const void* b){
 }
 
 // Return but don't remove head of the leaf queue of h_tree_builder "htb"
-static inline unsigned int h_tree_builder_peek0(struct h_tree_builder* htb){
+static inline unsigned int h_tree_builder_peek0(const struct h_tree_builder* htb){
 	if (htb->h0 < htb->cap){
 		return htb->q[htb->h0].weight;
 	}
@@ -200,7 +200,7 @@ static inline int h_tree_builder_pop0(struct h_tree_builder* htb){
 }
 
 // Return but don't remove head of the node queue of h_tree_builder "htb"
-static inline unsigned int h_tree_builder_peek1(struct h_tree_builder* htb){
+static inline unsigned int h_tree_builder_peek1(const struct h_tree_builder* htb){
 	if (htb->h1 >= 0 && htb->h1 < htb->t1){
 		return htb->weights[htb->h1];
 	}
@@ -264,7 +264,7 @@ void h_tree_builder_build(struct h_tree_builder* htb){
 	}
 }
 
-static unsigned int h_tree_builder_score_helper(struct h_tree_builder* htb, struct h_tree_node* htn, int depth){
+static unsigned int h_tree_builder_score_helper(const struct h_tree_builder* htb, const struct h_tree_node* htn, int depth){
 	unsigned int ret = 0;
 	if (htn->left < 0){
 		ret += htb->q[H_TREE_REP(htn->left)].weight * depth;
@@ -282,6 +282,6 @@ static unsigned int h_tree_builder_score_helper(struct h_tree_builder* htb, stru
 }
 
 // Return the score of the h_tree in h_tree_builder "htb"
-unsigned int h_tree_builder_score(struct h_tree_builder* htb){
+unsigned int h_tree_builder_score(const struct h_tree_builder* htb){
 	return h_tree_builder_score_helper(htb, htb->head.tree + htb->t1 - 1, 1);
 }

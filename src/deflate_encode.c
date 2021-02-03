@@ -66,7 +66,7 @@ struct dup_hash_entry{
 	swi len;
 };
 
-struct deflate_compr{
+struct deflate_compr{ // typedef in include/deflate_ext.h
 	struct aht ll_aht, d_aht;
 	FILE* f;
 	unsigned char* d, *e;
@@ -80,7 +80,7 @@ struct deflate_compr{
 
 SPAWNABLE(deflate_compr_t);
 
-void deflate_compr_init(deflate_compr_t* com, char* file_name, swi sw){
+void deflate_compr_init(deflate_compr_t* com, const char* file_name, swi sliding_window_sz){
 	if (!(com->d = malloc(com->sliding_window * 2 + 2))){
 		fail_out(E_MALLOC);
 	}
@@ -96,7 +96,7 @@ void deflate_compr_init(deflate_compr_t* com, char* file_name, swi sw){
 	if (com->f == NULL){
 		fail_out(E_NEXIST);
 	}
-	com->sliding_window = sw;
+	com->sliding_window = sliding_window_sz;
 	com->e = com->d + com->sliding_window;
 	com->read_ahead = 0;
 	com->done = 0;
@@ -112,7 +112,7 @@ void deflate_compr_deinit(deflate_compr_t* com){
 }
 
 // Hash table uses a hash function based on the first three characters of the dup string
-short dup_hash(unsigned char* p){
+short dup_hash(const unsigned char* p){
 	// Interleave bits of p[0], p[1], and p[2]
 	// Thanks for your code https://stackoverflow.com/a/1024889
 	int x, y, z;
@@ -161,7 +161,7 @@ void fetch_ahead(deflate_compr_t* com){
 }
 
 // Returns the common subsequence length of the current position 'str' and the duplicate entry 'dup'
-int check_dup_str(deflate_compr_t* com, unsigned char* str, unsigned char* dup){
+int check_dup_str(deflate_compr_t* com, const unsigned char* str, const unsigned char* dup){
 	int ret = 0;
 	while (str < com->bound && *(str++) == *(dup++)){
 		if (++ret == MAXLEN)// || str > com->bound)
@@ -290,12 +290,14 @@ void process_loop(deflate_compr_t* com, struct h_tree_builder* htb){
 			}
 			
 			h_tree_builder_reset(htb);
+			#ifdef _TEST_CHECK_LLD
 			sc = h_tree_d_lens(htb->q, &com->ll_aht, &com->d_aht, NULL);
+			#endif
 			h_tree_builder_build(htb);
+			#ifdef _TEST_CHECK_LLD
 			sc += h_tree_builder_score(htb);
 			//printf("%d, %d, %d, %d, %f\n", k + max_len, sc, com->ll_aht.score, com->d_aht.score, (double)(com->ll_aht.score + com->d_aht.score + sc) / (k + max_len));
 			//printf("%d, %d\n", k + max_len, com->ll_aht.score + com->d_aht.score + sc);
-			#ifdef _TEST_CHECK_LLD
 			// number of bytes processed, lit/len, 0/dist, number of bits in Huffman trees, number of bits from compressed data
 			if (max_len < 3)
 				printf("%d, %d, %d, %d, %d\n", k + max_len, com->e[i], 0, sc, com->ll_aht.score + com->d_aht.score);
@@ -342,7 +344,7 @@ repeat_copy:
 	}
 }
 
-int main(){
+int main(){ // dummy main that will 100% segfault
 	deflate_compr_init(NULL, NULL, 1);
 	process_loop(NULL, NULL);
 	return 0;

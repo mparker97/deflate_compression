@@ -51,7 +51,7 @@ void h_tree_builder_init(struct h_tree_builder* htb, int sz);
 void h_tree_builder_deinit(struct h_tree_builder* htb);
 void h_tree_builder_reset(struct h_tree_builder* htb);
 void h_tree_builder_build(struct h_tree_builder* htb);
-unsigned int h_tree_builder_score(struct h_tree_builder* htb);
-int h_tree_d_lens(struct htbq* htn, struct aht* aht0, struct aht* aht1, struct hlit_hdist_hclen* ldc);
+unsigned int h_tree_builder_score(const struct h_tree_builder* htb);
+int h_tree_d_lens(struct htbq* htn, const struct aht* aht0, const struct aht* aht1, struct hlit_hdist_hclen* ldc);
 
 #endif

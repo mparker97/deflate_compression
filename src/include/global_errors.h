@@ -41,7 +41,7 @@ const static unsigned char global_errors[NUM_GLOBAL_ERRORS + 1][ERROR_NAME_LEN +
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
 
-static void print_error(const unsigned char* m, char* file, int line){
+static void print_error(const unsigned char* m, const char* file, int line){
 	fprintf(stderr, "FAIL_OUT ENCOUNTERED ERROR %s (%s:%d)\n", m, file, line);
 }
 

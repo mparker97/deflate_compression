@@ -34,6 +34,6 @@ struct aht{
 void aht_init(struct aht* aht, int sz);
 void aht_deinit(struct aht* aht);
 void aht_insert(struct aht* aht, int c);
-void aht_print(struct aht* aht);
+void aht_print(const struct aht* aht);
 
 #endif
