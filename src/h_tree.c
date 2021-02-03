@@ -142,6 +142,7 @@ finish_off:
 	return bit_count;
 }
 
+// Initialize h_tree_builder "htb" to size sz
 void h_tree_builder_init(struct h_tree_builder* htb, int sz){
 	h_tree_init(&htb->head, sz);
 	htb->q = calloc(sz, sizeof(struct htbq));
@@ -157,12 +158,14 @@ void h_tree_builder_init(struct h_tree_builder* htb, int sz){
 	htb->h1 = htb->t1 = 0;
 }
 
+// Deinitialize h_tree_builder "htb"
 void h_tree_builder_deinit(struct h_tree_builder* htb){
 	h_tree_deinit(&htb->head);
 	freec(htb->q);
 	freec(htb->weights);
 }
 
+// Reset h_tree_builder "htb", erasing the current h tree being built
 void h_tree_builder_reset(struct h_tree_builder* htb){
 	memset(htb->weights, 0, (htb->cap + 1) * sizeof(unsigned int));
 	memset(htb->q, 0, htb->cap * sizeof(struct htbq));
@@ -170,6 +173,7 @@ void h_tree_builder_reset(struct h_tree_builder* htb){
 	htb->h1 = htb->t1 = 0;
 }
 
+// Sorter for the queue in an h_tree_builder
 static int htbq_comp(const void* a, const void* b){
 	// sort by weight, then by val
 	int ret = (int)((struct htbq*)a)->weight - ((struct htbq*)b)->weight;
@@ -179,6 +183,7 @@ static int htbq_comp(const void* a, const void* b){
 	return ret;
 }
 
+// Return but don't remove head of the leaf queue of h_tree_builder "htb"
 static inline unsigned int h_tree_builder_peek0(struct h_tree_builder* htb){
 	if (htb->h0 < htb->cap){
 		return htb->q[htb->h0].weight;
@@ -188,11 +193,13 @@ static inline unsigned int h_tree_builder_peek0(struct h_tree_builder* htb){
 	}
 }
 
+// Remove and return the head of the leaf queue of h_tree_builder "htb"
 static inline int h_tree_builder_pop0(struct h_tree_builder* htb){
 	htb->weights[htb->t1] += htb->q[htb->h0].weight;
 	return htb->h0++;
 }
 
+// Return but don't remove head of the node queue of h_tree_builder "htb"
 static inline unsigned int h_tree_builder_peek1(struct h_tree_builder* htb){
 	if (htb->h1 >= 0 && htb->h1 < htb->t1){
 		return htb->weights[htb->h1];
@@ -202,11 +209,13 @@ static inline unsigned int h_tree_builder_peek1(struct h_tree_builder* htb){
 	}
 }
 
+// Remove and return the head of the node queue of h_tree_builder "htb"
 static inline int h_tree_builder_pop1(struct h_tree_builder* htb){
 	htb->weights[htb->t1] += htb->weights[htb->h1];
 	return htb->h1++;
 }
 
+// Push a node with children "l" and "r" onto h_tree_builder "htb"
 static inline void h_tree_builder_push(struct h_tree_builder* htb, int l, int r){
 	htb->head.tree[htb->t1].left = l;
 	htb->head.tree[htb->t1].right = r;
@@ -214,11 +223,12 @@ static inline void h_tree_builder_push(struct h_tree_builder* htb, int l, int r)
 	htb->t1++;
 }
 
+// Build the h_tree from the lineup of leaf nodes in the queue of h_tree_builder "htb"
 void h_tree_builder_build(struct h_tree_builder* htb){
 	unsigned int p0, p1;
 	int i0, i1;
 	qsort(htb->q, htb->cap, sizeof(struct htbq), htbq_comp);
-	for (htb->h0 = 0; htb->q[htb->h0].weight == 0; htb->h0++);
+	for (htb->h0 = 0; htb->q[htb->h0].weight == 0; htb->h0++); // move h0 to the first nonzero-weight leaf
 	for (;;){
 		p0 = h_tree_builder_peek0(htb);
 		p1 = h_tree_builder_peek1(htb);
@@ -271,6 +281,7 @@ static unsigned int h_tree_builder_score_helper(struct h_tree_builder* htb, stru
 	return ret;
 }
 
+// Return the score of the h_tree in h_tree_builder "htb"
 unsigned int h_tree_builder_score(struct h_tree_builder* htb){
 	return h_tree_builder_score_helper(htb, htb->head.tree + htb->t1 - 1, 1);
 }

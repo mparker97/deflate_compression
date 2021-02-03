@@ -17,16 +17,16 @@
 #define byte_roundup(byte, bit) if (bit) do{(byte)++; (bit) = 0;} while (0)
 #define MASK(val, a, b) ((*(1ULL << (b)) - 1) & (val)) >> (a))
 
+#define SPAWNABLE_HEADER(t) t* spawn_##t()
+
 #define SPAWNABLE(t) \
-	t* spawn_##t(){ \
+	SPAWNABLE_HEADER(t){ \
 		t* ret = malloc(sizeof(t)); \
 		if (!ret){ \
 			fail_out(E_MALLOC); \
 		}\
 		return ret; \
 	}
-
-#define SPAWNABLE_HEADER(t) t* spawn_##t()
 
 #define STATIC_WIGNORE(x, instrs) \
 	_Pragma("GCC diagnostic push") \

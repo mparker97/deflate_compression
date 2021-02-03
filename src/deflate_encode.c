@@ -30,7 +30,7 @@ The data space 'd' points to a region kept at a size of 2 * 'sliding_window' + 2
 		|-------- sliding_window ---------|-------- sliding_window ---------|-1-|-1-|
 
 The two regions can be represented by pointers 'd' and 'e'. The 'e' window is current, and the 'd' window is former.
-'sliding_window' + 2 bytes of data are initially read into 'd'. Each char of the current sliding window is copied to its
+'sliding_window' + 2 bytes of data are initially read into 'e'. Each char of the current sliding window is copied to its
 	relative position in the former sliding window after it is processed. When the current sliding window is fully processed,
 	'A' and 'B' are copied into the first two bytes of 'e', and then the next 'sliding_window' bytes are copied in,
 	filling up the remaining window and the two spillover bytes once again. At this point, the result is that
@@ -80,7 +80,7 @@ struct deflate_compr{
 
 SPAWNABLE(deflate_compr_t);
 
-void deflate_compr_init(deflate_compr_t* com, char* fn, swi sw){
+void deflate_compr_init(deflate_compr_t* com, char* file_name, swi sw){
 	if (!(com->d = malloc(com->sliding_window * 2 + 2))){
 		fail_out(E_MALLOC);
 	}
@@ -92,7 +92,7 @@ void deflate_compr_init(deflate_compr_t* com, char* fn, swi sw){
 	if (!(com->dup_ht = calloc(DUP_HT_SZ, sizeof(struct dup_hash_entry)))){
 		fail_out(E_MALLOC);
 	}
-	com->f = fopen(fn, "r");
+	com->f = fopen(file_name, "r");
 	if (com->f == NULL){
 		fail_out(E_NEXIST);
 	}
@@ -319,10 +319,10 @@ repeat_copy:
 				}
 				com->d[i] = com->e[i]; // copy char to old sliding window
 			}
-			if (dup_carry_over > 0){
+			if (dup_carry_over > 0){ // dup match goes beyond sliding window; copy chars into beginning of next sliding window
 				i = 0;
 				j = dup_carry_over;
-				dup_carry_over = -1;
+				dup_carry_over = -1; // ensures control flow will fall into the "else if" next time
 				com->e[0] = com->e[com->sliding_window];
 				com->e[1] = com->e[com->sliding_window + 1];
 				// if the string breached past sliding window + 1, fetch_ahead had brought in the chars past e + 1
@@ -333,7 +333,9 @@ repeat_copy:
 			}
 			
 		}
-		if (!com->read_ahead){
+		if (!com->read_ahead){ // did not breach next sliding window; reset i to the beginning for next sliding window
+			com->e[0] = com->e[com->sliding_window];
+			com->e[1] = com->e[com->sliding_window + 1];
 			i = 0;
 		}
 		first_window = 0;

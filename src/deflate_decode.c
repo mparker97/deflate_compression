@@ -356,7 +356,7 @@ void deflate_decompress_header(struct deflate_decompr* dec, unsigned char* byte,
 	if (cinfo > 7) // need sliding window <= 32768
 		fail_out(E_ZSLWIN);
 	dec->sliding_window = 1ULL << (cinfo + 8);
-	if (byte[1] & 0x10){ // preset dictionary
+	if (byte[1] & 0x20){ // preset dictionary
 		// FUTURE: I don't have any knowledge of existing dictionaries, and I REALLY shouldn't need to for png files...
 		fail_out(E_ZPDICT);
 	}
