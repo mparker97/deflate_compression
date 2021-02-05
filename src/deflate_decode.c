@@ -11,7 +11,7 @@
 struct deflate_decompr{ // amortized list
 	unsigned char* d;
 	size_t sz;
-	size_t sliding_window;
+	size_t sliding_window; // obtained from header; used to verify dists aren't too large
 };
 
 struct code_len{
@@ -19,6 +19,7 @@ struct code_len{
 	short len;
 };
 
+// See 3.2.7, HCLEN
 const unsigned char D1_INIT_CODE_LENS[] = {16, 0, 17, 0, 18, 0, 0, 0, 8, 0, 7, 0, 9, 0, 6, 0, 10, 0, 5, 0, 11, 0, 4, 0, 12, 0, 3, 0, 13, 0, 2, 0, 14, 0, 1, 0, 15, 0};
 
 int code_len_cmp(const void* a, const void* b){ // for qsort
@@ -43,7 +44,7 @@ fail:
 }
 
 // Write the character sequence 'str' of length 'len' to the 'dec' amortized list
-int decompr_write_str(struct deflate_decompr* dec, unsigned char* str, unsigned int len){
+int decompr_write_str(struct deflate_decompr* dec, const unsigned char* str, unsigned int len){
 	int ret = 0;
 	if ((dec->d = realloc(dec->d, 1ULL << __builtin_clzl(dec->sz - 1 + len))) == NULL)
 		fail_out(E_MALLOC);
@@ -56,7 +57,7 @@ fail:
 }
 
 // Compute the adler32 checksum of the memory segment at 'b' of length 'len'
-unsigned int adler32(unsigned char* b, size_t len){
+unsigned int adler32(const unsigned char* b, size_t len){
 	unsigned int s1 = 1, s2 = 0;
 	size_t i;
 	for (i = 0; i < len; i++){
@@ -130,7 +131,7 @@ h_code code_fd(unsigned int v){ // Number of bits ('nb') is always 5
 }
 
 // Look up the Huffman code value from the Huffman tree 'h'
-int _h_tree_lookup(struct h_tree_head* h, unsigned char** byte, int* bit){
+int _h_tree_lookup(const struct h_tree_head* h, unsigned char** byte, int* bit){
 	if (h->sz == H_TREE_SZ_FL){ // fixed Huffman tree for literal/length
 		return h_tree_lookup_fl(byte, bit);
 	}
@@ -176,7 +177,7 @@ void form_d1(struct h_tree_head* h, unsigned char** byte, int* bit, int hclen){
 }
 
 // Create the dynamic Huffman tree for the literal/length (h2) and distance (h3) alphabets
-int form_d2(struct h_tree_head* h1, struct h_tree_head* h2, struct h_tree_head* h3, unsigned char** byte, int* bit, int hlit, int hdist){
+int form_d2(const struct h_tree_head* h1, struct h_tree_head* h2, struct h_tree_head* h3, unsigned char** byte, int* bit, int hlit, int hdist){
 	int ret = 0, i, cl, top, val;
 	struct code_len* cls;
 	unsigned int b = 0; // number of code length entries in a row to set to this code length
@@ -234,7 +235,7 @@ form_d2_2:
 }
 
 // Read the compressed data and decompress it using the Huffman trees
-int do_decompress(struct deflate_decompr* dec, struct h_tree_head* h2, struct h_tree_head* h3, unsigned char** byte, int* bit){
+int do_decompress(struct deflate_decompr* dec, const struct h_tree_head* h2, const struct h_tree_head* h3, unsigned char** byte, int* bit){
 	// continue 3.2.3 procedure after compression mode resolved
 	int ret = 0, len, dist;
 	for (;;){
@@ -343,8 +344,9 @@ fail:
 	return ret;
 }
 
-void deflate_decompress_header(struct deflate_decompr* dec, unsigned char* byte, unsigned char* cap){
+void deflate_decompress_header(struct deflate_decompr* dec, unsigned char** _byte, unsigned char* cap){
 	unsigned char cinfo;
+	unsigned char* byte = *_byte;
 	if (cap - byte < 2) // need room for at least CMF byte and FLG byte
 		fail_out(E_ZHEAD);
 	if ((((unsigned short)byte[0] << 8) | (unsigned short)byte[1]) % 31) // need CMF*256 + FLG to be a multiple of 31
@@ -359,8 +361,10 @@ void deflate_decompress_header(struct deflate_decompr* dec, unsigned char* byte,
 	if (byte[1] & 0x20){ // preset dictionary
 		// FUTURE: I don't have any knowledge of existing dictionaries, and I REALLY shouldn't need to for png files...
 		fail_out(E_ZPDICT);
+		// otherwise, *_byte += 6 + extra bytes;
 	}
 	// FLEVEL not needed
+	*_byte += 2;
 }
 
 // Decompresses the data from 'compr_dat' into 'decompr_dat' with options 'ops'
@@ -381,8 +385,7 @@ int deflate_decompress(struct string_len* decompr_dat, struct string_len* compr_
 	byte = compr_dat->str;
 	cap = byte + compr_dat->len - sizeof(unsigned int); // take off adler32
 	// header
-	deflate_decompress_header(&dec, byte, cap);
-	byte += ret;
+	deflate_decompress_header(&dec, &byte, cap);
 	// blocks
 	// 3.2.3 procedure
 	while (byte < cap){

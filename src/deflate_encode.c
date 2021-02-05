@@ -68,19 +68,20 @@ struct dup_hash_entry{
 
 struct deflate_compr{ // typedef in include/deflate_ext.h
 	struct aht ll_aht, d_aht;
-	FILE* f;
+	//FILE* f;
 	unsigned char* d, *e;
 	swi* dup_entries;
 	struct dup_hash_entry* dup_ht;
 	unsigned char* bound;
-	int sliding_window;
+	int fd_in, fd_out;
+	swi sliding_window;
 	unsigned char read_ahead; // bool
 	unsigned char done;
 };
 
 SPAWNABLE(deflate_compr_t);
 
-void deflate_compr_init(deflate_compr_t* com, const char* file_name, swi sliding_window_sz){
+void deflate_compr_init(deflate_compr_t* com, int fd_in, int fd_out, swi sliding_window_sz){
 	if (!(com->d = malloc(com->sliding_window * 2 + 2))){
 		fail_out(E_MALLOC);
 	}
@@ -92,10 +93,8 @@ void deflate_compr_init(deflate_compr_t* com, const char* file_name, swi sliding
 	if (!(com->dup_ht = calloc(DUP_HT_SZ, sizeof(struct dup_hash_entry)))){
 		fail_out(E_MALLOC);
 	}
-	com->f = fopen(file_name, "r");
-	if (com->f == NULL){
-		fail_out(E_NEXIST);
-	}
+	com->fd_in = fd_in;
+	com->fd_out = fd_out;
 	com->sliding_window = sliding_window_sz;
 	com->e = com->d + com->sliding_window;
 	com->read_ahead = 0;
@@ -108,7 +107,6 @@ void deflate_compr_deinit(deflate_compr_t* com){
 	free(com->d_aht.tree);
 	free(com->dup_entries);
 	free(com->dup_ht);
-	fclose(com->f);
 }
 
 // Hash table uses a hash function based on the first three characters of the dup string
@@ -137,7 +135,7 @@ short dup_hash(const unsigned char* p){
 // TODO: figure out bound for reading in and stuff
 
 void fetch(deflate_compr_t* com, unsigned char* p, swi len){
-	int ret = fread(p, sizeof(unsigned char), len, com->f); // TODO: get bytes here
+	int ret = read(com->fd_in, p, len); // TODO: get bytes here
 	com->bound = p + ret;
 	if (!ret){
 		com->done = 1;
@@ -263,18 +261,18 @@ void process_loop(deflate_compr_t* com, struct h_tree_builder* htb){
 				hash = com->dup_entries[hash]; // proceed to next hash element
 			}
 			
-			//printf("%d bytes processed. ", k + 1);
+			//dprintf(com->fd_out, "%d bytes processed. ", k + 1);
 			dup_carry_over = 0;
 			if (max_len < 3){
 				j = i + 1;
-				//printf("Literal %c (%d)\n", com->e[i], com->e[i]);
+				//dprintf(com->fd_out, "Literal %c (%d)\n", com->e[i], com->e[i]);
 				// TODO: write literal
 				aht_insert(&com->ll_aht, com->e[i]);
 				max_len = 1;
 			}
 			else{
 				max_idx = com->e + i - (com->d + max_idx); // now distance
-				//printf("Len: %d, dist: %d\n", max_len, max_idx);
+				//dprintf(com->fd_out, "Len: %d, dist: %d\n", max_len, max_idx);
 				
 				aht_insert(&com->ll_aht, get_len_code(max_len, NULL, NULL));
 				aht_insert(&com->d_aht, get_dist_code(max_idx, NULL, NULL));
@@ -296,13 +294,13 @@ void process_loop(deflate_compr_t* com, struct h_tree_builder* htb){
 			h_tree_builder_build(htb);
 			#ifdef _TEST_CHECK_LLD
 			sc += h_tree_builder_score(htb);
-			//printf("%d, %d, %d, %d, %f\n", k + max_len, sc, com->ll_aht.score, com->d_aht.score, (double)(com->ll_aht.score + com->d_aht.score + sc) / (k + max_len));
-			//printf("%d, %d\n", k + max_len, com->ll_aht.score + com->d_aht.score + sc);
+			//dprintf(com->fd_out, "%d, %d, %d, %d, %f\n", k + max_len, sc, com->ll_aht.score, com->d_aht.score, (double)(com->ll_aht.score + com->d_aht.score + sc) / (k + max_len));
+			//dprintf(com->fd_out, "%d, %d\n", k + max_len, com->ll_aht.score + com->d_aht.score + sc);
 			// number of bytes processed, lit/len, 0/dist, number of bits in Huffman trees, number of bits from compressed data
 			if (max_len < 3)
-				printf("%d, %d, %d, %d, %d\n", k + max_len, com->e[i], 0, sc, com->ll_aht.score + com->d_aht.score);
+				dprintf(com->fd_out, "%d, %d, %d, %d, %d\n", k + max_len, com->e[i], 0, sc, com->ll_aht.score + com->d_aht.score);
 			else
-				printf("%d, %d, %d, %d, %d\n", k + max_len, max_len, max_idx, sc, com->ll_aht.score + com->d_aht.score);
+				dprintf(com->fd_out, "%d, %d, %d, %d, %d\n", k + max_len, max_len, max_idx, sc, com->ll_aht.score + com->d_aht.score);
 			#endif
 			
 			
@@ -345,17 +343,23 @@ repeat_copy:
 }
 
 int main(){ // dummy main that will 100% segfault
-	deflate_compr_init(NULL, NULL, 1);
+	deflate_compr_init(NULL, 0, 0, 1);
 	process_loop(NULL, NULL);
 	return 0;
 }
 
-/*
-int deflate_compress(struct string_len* compr_dat, struct string_len* decompr_dat, int ops){
-	deflate_compr_t com;
-	// TODO: get sliding window
-	com.sliding_window = sliding_window;
-	deflate_compr_init(&com);
-	
+int deflate_compress(int fd_in, int fd_out, swi sw, int ops){ // STDIN_FILENO, STDOUT_FILENO
+	deflate_compr_t* com;
+	struct h_tree_builder htb;
+	com = spawn_deflate_compr_t();
+	deflate_compr_init(com, fd_in, fd_out, sw);
+	h_tree_builder_init(&htb, 19);
+	if (!fail_checkpoint()){
+		process_loop(com, &htb);
+	}
+fail:
+	fail_uncheckpoint();
+	deflate_compr_deinit(com);
+	htb_deinit(&htb);
+	free(com);
 }
-*/

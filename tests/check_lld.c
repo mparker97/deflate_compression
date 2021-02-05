@@ -75,7 +75,7 @@ fail:
 	kill(pid, SIGKILL);
 }
 
-static void do_test(deflate_compr_t* com, struct h_tree_builder* htb){
+static void do_test(deflate_compr_t* com, struct h_tree_builder* htb, int fd_in){
 	int f;
 	int p[2];
 	
@@ -93,34 +93,24 @@ static void do_test(deflate_compr_t* com, struct h_tree_builder* htb){
 	}
 	else{
 		close(p[0]);
-		dup2(p[1], STDOUT_FILENO);
-		if (fail_checkpoint()){
-			process_loop(com, htb);
-		}
-		printf("\n"); // to terminate parent read loop
-		fail_uncheckpoint();
+		deflate_compress(fd_in, p[1], SLIDING_WINDOW, 0)
+		dprintf(p[1], "\n"); // to terminate parent read loop
 		close(p[1]);
 		exit(0);
 	}
 }
 
 int main(int argc, char* argv[]){
-	deflate_compr_t* com = NULL;
-	struct h_tree_builder htb;
+	int fd_in;
 	if (argc != 2){
 		fprintf(stderr, "USAGE: %s FILE\n", argv[0]);
 		exit(1);
 	}
-	if (!fail_checkpoint()){
-		goto fail;
+	fd_in = open(argv[1], O_RDONLY);
+	if (fd_in < 0){
+		fprintf(stderr, "%s: no such file\n", argv[1]);
+		exit(1);
 	}
-	com = spawn_deflate_compr_t();
-	deflate_compr_init(com, argv[1], SLIDING_WINDOW);
-	h_tree_builder_init(&htb, 19);
-	do_test(com, &htb);
-fail:
-	fail_uncheckpoint();
-	deflate_compr_deinit(com);
-	htb_deinit(&htb);
-	free(com);
+	do_test(com, &htb, fd_in);
+	close(fd_in);
 }

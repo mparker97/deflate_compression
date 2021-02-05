@@ -21,7 +21,7 @@ void h_tree_deinit(struct h_tree_head* h){
 }
 
 // Look up the Huffman code value from the Huffman tree 'h'
-int h_tree_lookup(struct h_tree_head* h, unsigned char** byte, int* bit){
+int h_tree_lookup(const struct h_tree_head* h, unsigned char** byte, int* bit){
 	int v;
 	struct h_tree_node* t = h->tree;
 	for (;;){
