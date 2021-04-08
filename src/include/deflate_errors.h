@@ -1,3 +1,5 @@
+// This wraps the global_errors.h error system, adding new errors specialized for deflate operations
+
 #ifndef DEFLATE_ERRORS_H
 #define DEFLATE_ERRORS_H
 #include "global_errors.h"

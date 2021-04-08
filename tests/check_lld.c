@@ -15,8 +15,6 @@
 #include "../src/include/deflate_ext.h"
 #include "../src/include/h_tree.h"
 
-#define _TEST_CHECK_LLD // Not going to work
-
 const static int SLIDING_WINDOW = 1 << 15;
 
 void do_write(unsigned char* buf, int len, int dist){
@@ -40,38 +38,18 @@ void do_write(unsigned char* buf, int len, int dist){
 	}
 }
 
-static void do_parent(int pid, int p){
-	char* st, *n;
-	FILE* f;
-	char buf[128];
-	int parse[5];
-	int i, len;
+static void do_parent(int pid, int f){
+	struct compress_stats cs;
 	unsigned char* out_buf = malloc(SLIDING_WINDOW * sizeof(unsigned char));
 	if (!out_buf){
 		goto fail;
 	}
-	f = fdopen(p, "r");
-	if (!f){
-		goto fail;
+	while (read(f, &cs, sizeof(cs)) > 1){
+		do_write(out_buf, cs.ll, cs.dist);
 	}
-	while (fgets(buf, 128, f)){
-		if (buf[0] == '\n')
-			break;
-		st = buf;
-		for (i = 0; i < 5; i++){
-			n = strtok(st, " ,");
-			if (!n){
-				goto fail;
-			}
-			parse[i] = atoi(n);
-			st = NULL;
-		}
-		do_write(out_buf, parse[1], parse[2]);
-	}
-	fclose(f);
 	return;
 fail:
-	close(p);
+	close(f);
 	kill(pid, SIGKILL);
 }
 
@@ -93,8 +71,8 @@ static void do_test(deflate_compr_t* com, struct h_tree_builder* htb, int fd_in)
 	}
 	else{
 		close(p[0]);
-		deflate_compress(fd_in, p[1], SLIDING_WINDOW, 0)
-		dprintf(p[1], "\n"); // to terminate parent read loop
+		deflate_compress(fd_in, p[1], -1, SLIDING_WINDOW, 0) // TODO: wrong
+		write(p[1], &f, 1); // single arbitrary byte to terminate parent read loop
 		close(p[1]);
 		exit(0);
 	}

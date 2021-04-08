@@ -62,26 +62,27 @@ The hash function operates on the current and subsequent two chars. When searchi
 */
 
 struct dup_hash_entry{
-	swi ptr;
-	swi len;
+	swi ptr; // index to this hash chain head in dup_entries
+	swi len; // length of this hash chain
 };
 
 struct deflate_compr{ // typedef in include/deflate_ext.h
-	struct aht ll_aht, d_aht;
-	//FILE* f;
-	unsigned char* d, *e;
-	swi* dup_entries;
-	struct dup_hash_entry* dup_ht;
-	unsigned char* bound;
-	int fd_in, fd_out;
-	swi sliding_window;
-	unsigned char read_ahead; // bool
-	unsigned char done;
+	struct aht ll_aht, d_aht; // lit/len and dist ahts
+	unsigned char* d, *e; // pointers to former and current sliding windows (see above)
+	struct dup_hash_entry* dup_ht; // an array of heads of hash chains for searching for dup entries
+	swi* dup_entries; // an array of sliding window size containing the hash chains
+	unsigned char* bound; // the bound for bytes read in
+	int fd_in; // where to read uncompressed bytes from
+	int fd_out; // where to write compressed bytes to
+	int fd_stats; // where to write statistics to
+	swi sliding_window; // sliding window size
+	unsigned char read_ahead; // bool (see above)
+	unsigned char done; // bool, finished compressing
 };
 
 SPAWNABLE(deflate_compr_t);
 
-void deflate_compr_init(deflate_compr_t* com, int fd_in, int fd_out, swi sliding_window_sz){
+void deflate_compr_init(deflate_compr_t* com, int fd_in, int fd_out, int fd_stats, swi sliding_window_sz){
 	if (!(com->d = malloc(com->sliding_window * 2 + 2))){
 		fail_out(E_MALLOC);
 	}
@@ -95,6 +96,7 @@ void deflate_compr_init(deflate_compr_t* com, int fd_in, int fd_out, swi sliding
 	}
 	com->fd_in = fd_in;
 	com->fd_out = fd_out;
+	com->fd_stats = fd_stats;
 	com->sliding_window = sliding_window_sz;
 	com->e = com->d + com->sliding_window;
 	com->read_ahead = 0;
@@ -215,8 +217,10 @@ int get_dist_code(int x, int* peb, int* pebits){
 }
 
 void process_loop(deflate_compr_t* com, struct h_tree_builder* htb){
-	int i, j, k, t; // i and j are loop iterators, k is the total processed byte count, t is a scratch variable
+	int i, j, t; // i and j are loop iterators, t is a scratch variable
 	int c; // offset of dup, taken from com->d
+	
+	struct compress_stats cs;
 	
 	struct dup_hash_entry* dh;
 	swi hash;
@@ -225,13 +229,10 @@ void process_loop(deflate_compr_t* com, struct h_tree_builder* htb){
 	int max_len; // maximum dup match length found from the hash chain
 	int max_idx; // maximum dup match index found from the hash chain
 	int first_window = 1; // bool to treat com->d as invalid for the first sliding window
-	#ifdef _TEST_CHECK_LLD
-	int sc, sc2; // scores; could do without
-	#endif
 	
 	// insert end of block token (256) into ll_aht immediately, since it will always be there once
 	aht_insert(&com->ll_aht, 256);
-	k = 1;
+	cs.bytes = 1;
 	
 	fetch(com, com->e, 2);
 	for (i = 0;;){
@@ -261,12 +262,11 @@ void process_loop(deflate_compr_t* com, struct h_tree_builder* htb){
 				hash = com->dup_entries[hash]; // proceed to next hash element
 			}
 			
-			//dprintf(com->fd_out, "%d bytes processed. ", k + 1);
 			dup_carry_over = 0;
 			if (max_len < 3){
 				j = i + 1;
-				//dprintf(com->fd_out, "Literal %c (%d)\n", com->e[i], com->e[i]);
-				// TODO: write literal
+				//dprintf(com->fd_out, "%c", com->e[i]);
+				// TODO: write lit
 				aht_insert(&com->ll_aht, com->e[i]);
 				max_len = 1;
 			}
@@ -288,25 +288,29 @@ void process_loop(deflate_compr_t* com, struct h_tree_builder* htb){
 			}
 			
 			h_tree_builder_reset(htb);
-			#ifdef _TEST_CHECK_LLD
-			sc = h_tree_d_lens(htb->q, &com->ll_aht, &com->d_aht, NULL);
-			#endif
+			if (com->fd_stats >= 0)
+				cs.tree_bits = h_tree_d_lens(htb->q, &com->ll_aht, &com->d_aht, NULL);
 			h_tree_builder_build(htb);
-			#ifdef _TEST_CHECK_LLD
-			sc += h_tree_builder_score(htb);
-			//dprintf(com->fd_out, "%d, %d, %d, %d, %f\n", k + max_len, sc, com->ll_aht.score, com->d_aht.score, (double)(com->ll_aht.score + com->d_aht.score + sc) / (k + max_len));
-			//dprintf(com->fd_out, "%d, %d\n", k + max_len, com->ll_aht.score + com->d_aht.score + sc);
-			// number of bytes processed, lit/len, 0/dist, number of bits in Huffman trees, number of bits from compressed data
-			if (max_len < 3)
-				dprintf(com->fd_out, "%d, %d, %d, %d, %d\n", k + max_len, com->e[i], 0, sc, com->ll_aht.score + com->d_aht.score);
-			else
-				dprintf(com->fd_out, "%d, %d, %d, %d, %d\n", k + max_len, max_len, max_idx, sc, com->ll_aht.score + com->d_aht.score);
-			#endif
-			
+			if (com->fd_stats >= 0){
+				cs.tree_bits += h_tree_builder_score(htb);
+				
+				cs.ll_bits = com->ll_aht.score;
+				cs.d_bits = com->d_aht.score;
+				
+				if (max_len < 3){ // lit
+					cs.ll = com->e[i]; // lit character
+					cs.d = 0; // 0 to indicate this is a literal
+				}
+				else{ // len/dist pair
+					cs.ll = max_len; // len
+					cs.d = max_idx; // dist
+				}
+				write(com->fd_stats, &cs, sizeof(cs));
+			}
 			
 			// update sliding window structures
 repeat_copy:
-			for (; i < j; i++, k++){
+			for (; i < j; i++, cs.bytes++){
 				// append to new chain
 				dh = com->dup_ht + dup_hash(com->e + i);
 				com->dup_entries[i] = dh->ptr;
@@ -342,17 +346,24 @@ repeat_copy:
 	}
 }
 
-int main(){ // dummy main that will 100% segfault
-	deflate_compr_init(NULL, 0, 0, 1);
-	process_loop(NULL, NULL);
-	return 0;
-}
+//int main(){ // dummy main that will 100% segfault
+//	deflate_compr_init(NULL, 0, 0, 1);
+//	process_loop(NULL, NULL);
+//	return 0;
+//}
 
-int deflate_compress(int fd_in, int fd_out, swi sw, int ops){ // STDIN_FILENO, STDOUT_FILENO
+/* Performs deflate compression with a sliding window 'sw' using the file descriptors:
+	'fd_in' - input (uncompressed) data
+	'fd_out' - output (compressed) data
+	'fd_stats' - statistics written here (else -1)
+
+	ops: 1 means write a null character at the end
+*/
+int deflate_compress(int fd_in, int fd_out, int fd_stats, swi sw, int ops){ // STDIN_FILENO, STDOUT_FILENO
 	deflate_compr_t* com;
 	struct h_tree_builder htb;
 	com = spawn_deflate_compr_t();
-	deflate_compr_init(com, fd_in, fd_out, sw);
+	deflate_compr_init(com, fd_in, fd_out, fd_stats, sw);
 	h_tree_builder_init(&htb, 19);
 	if (!fail_checkpoint()){
 		process_loop(com, &htb);

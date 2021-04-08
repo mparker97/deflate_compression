@@ -1,3 +1,15 @@
+/*
+This is a checkpointing system.
+The source file "error_checkpoint.c" establishes an array of MAX_CHECKPOINTS checkpoints.
+Checkpoints are made with the fail_checkpoint() function:
+	0 is returned when the checkpoint is first made.
+	When an error occurs, use the fail_out() macro, passing the relevant error constant.
+		The control flow then jumps to the most recent fail_checkpoint() call, returning this time the supplied error constant.
+The most recent checkpoint is taken down with the fail_uncheckpoint() function.
+	When a checkpointed section of code is completed successfully, use this to close off the checkpoint.
+	fail_uncheckpoint() should be called after returning to a checkpoint via fail_out(), too.
+*/
+
 #ifndef GLOBAL_ERRORS_H
 #define GLOBAL_ERRORS_H
 #include <stdlib.h>
@@ -18,7 +30,7 @@
 #define E_EXIST  7  // Exists
 #define E_NEXIST 8  // Doesn't exist
 #define E_NONULL 9  // Not NULL
-#define E_RANGE  10  // Out of range
+#define E_RANGE  10 // Out of range
 #define E_INVAL  11 // Invalid
 #define E_RESERV 12 // Reserved
 
@@ -56,7 +68,7 @@ static int fail_checkpoint(){
 	return setjmp(checkpoints[checkpoint_stack]);
 }
 
-static void fail_uncheckpoint(){
+static inline void fail_uncheckpoint(){
 	checkpoint_stack--;
 }
 
